@@ -7,6 +7,9 @@ import type { Documento, Pagamento, TipoBeneficio } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+// Dá mais tempo para lotes com vários PDFs (só tem efeito em planos Pro/Enterprise
+// do Vercel — no Hobby o limite máximo continua sendo ~10s por requisição).
+export const maxDuration = 60;
 
 const TIPOS_VALIDOS: TipoBeneficio[] = ["SALARIO", "VT", "AUXILIO", "NAO_IDENTIFICADO"];
 

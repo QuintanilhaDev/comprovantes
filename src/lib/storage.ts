@@ -1,23 +1,33 @@
 import fs from "node:fs/promises";
 import fssync from "node:fs";
 import path from "node:path";
+import os from "node:os";
 
 /**
  * Abstração de armazenamento.
  *
- * - Sem BLOB_READ_WRITE_TOKEN configurado: usa o disco local (pasta /data).
- *   Funciona perfeitamente com `npm run dev` / `npm start` na sua máquina.
- * - Com BLOB_READ_WRITE_TOKEN configurado (Vercel Blob): os uploads feitos
- *   pela tela "Anexar arquivos" passam a ser permanentes também quando o
- *   projeto está hospedado no Vercel (cujo sistema de arquivos é temporário).
+ * - Sem BLOB_READ_WRITE_TOKEN configurado, rodando na sua máquina (npm run dev /
+ *   npm start): uploads são salvos em disco, na pasta `data/uploads` do projeto.
+ * - Sem BLOB_READ_WRITE_TOKEN configurado, rodando no Vercel: a pasta do projeto
+ *   é somente leitura lá (só é permitido escrever em /tmp), então os uploads são
+ *   salvos em uma pasta temporária. Funcionam normalmente durante o uso, mas
+ *   podem ser apagados quando a função "esfria" ou uma nova versão é publicada.
+ * - Com BLOB_READ_WRITE_TOKEN configurado (Vercel Blob): os uploads passam a ser
+ *   permanentes também no Vercel.
  *
  * Os dados que já vêm prontos com o projeto (planilha inicial + comprovantes
  * de agosto/setembro) sempre são lidos do disco, pois fazem parte do próprio
- * código-fonte enviado ao Vercel.
+ * código-fonte enviado ao Vercel (isso nunca muda, independe do que está aqui).
  */
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const USE_BLOB = !!process.env.BLOB_READ_WRITE_TOKEN;
+
+// No Vercel, process.env.VERCEL é sempre "1". Nesse caso (sem Blob configurado),
+// usamos /tmp — a única pasta com permissão de escrita lá.
+const IS_VERCEL = !!process.env.VERCEL;
+const UPLOADS_DIR =
+  !USE_BLOB && IS_VERCEL ? path.join(os.tmpdir(), "comprovantes-tre-uploads") : path.join(DATA_DIR, "uploads");
 
 export function dataDir() {
   return DATA_DIR;
@@ -67,7 +77,13 @@ export async function readMutableJson<T>(key: string, fallback: T): Promise<T> {
       return fallback;
     }
   }
-  return readJsonLocal(`uploads/${key}.json`, fallback);
+  try {
+    const full = path.join(UPLOADS_DIR, `${key}.json`);
+    const raw = await fs.readFile(full, "utf-8");
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
 }
 
 export async function writeMutableJson<T>(key: string, value: T): Promise<void> {
@@ -81,7 +97,7 @@ export async function writeMutableJson<T>(key: string, value: T): Promise<void> 
     });
     return;
   }
-  const full = path.join(DATA_DIR, "uploads", `${key}.json`);
+  const full = path.join(UPLOADS_DIR, `${key}.json`);
   await fs.mkdir(path.dirname(full), { recursive: true });
   await fs.writeFile(full, JSON.stringify(value, null, 1), "utf-8");
 }
@@ -97,7 +113,7 @@ export async function saveUploadedFile(relPath: string, bytes: Buffer, contentTy
     });
     return blob.url;
   }
-  const full = path.join(DATA_DIR, "uploads", "files", relPath);
+  const full = path.join(UPLOADS_DIR, "files", relPath);
   await fs.mkdir(path.dirname(full), { recursive: true });
   await fs.writeFile(full, bytes);
   return `local:${relPath}`;
@@ -127,7 +143,7 @@ export async function readFileBytes(kind: "baseline" | "upload", relPath: string
     }
   }
   try {
-    const full = path.join(DATA_DIR, "uploads", "files", relPath);
+    const full = path.join(UPLOADS_DIR, "files", relPath);
     return await fs.readFile(full);
   } catch {
     return null;
@@ -136,4 +152,9 @@ export async function readFileBytes(kind: "baseline" | "upload", relPath: string
 
 export function isUsingBlob() {
   return USE_BLOB;
+}
+
+/** true quando os uploads estão indo para uma pasta temporária (Vercel sem Blob configurado). */
+export function isUsingEphemeralStorage() {
+  return !USE_BLOB && IS_VERCEL;
 }

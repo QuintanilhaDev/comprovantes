@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDocumentos, getFuncionarios, getPagamentos } from "@/lib/data";
-import { isUsingBlob } from "@/lib/storage";
+import { isUsingBlob, isUsingEphemeralStorage } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -21,5 +21,6 @@ export async function GET() {
     totalPagamentos: pagamentos.length,
     alertas,
     armazenamentoPersistente: isUsingBlob(),
+    armazenamentoTemporario: isUsingEphemeralStorage(),
   });
 }

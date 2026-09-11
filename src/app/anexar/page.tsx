@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import type { TipoBeneficio } from "@/lib/types";
 
@@ -21,6 +21,15 @@ const TIPO_LABEL: Record<TipoBeneficio, string> = {
 };
 
 export default function AnexarPage() {
+  const [avisoTemporario, setAvisoTemporario] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/stats")
+      .then((r) => r.json())
+      .then((d) => setAvisoTemporario(!!d.armazenamentoTemporario))
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="mx-auto max-w-3xl px-4 pb-24 pt-8 sm:px-6">
       <h1 className="font-display text-2xl font-semibold text-paper">Anexar arquivos</h1>
@@ -28,6 +37,15 @@ export default function AnexarPage() {
         Envie novos comprovantes em PDF assim que forem gerados, ou substitua a planilha de funcionários
         quando houver contratações ou desligamentos.
       </p>
+
+      {avisoTemporario && (
+        <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/[0.06] px-4 py-3 text-sm text-amber-200">
+          <strong className="text-amber-300">Atenção:</strong> este site está hospedado no Vercel sem
+          armazenamento permanente configurado. Os arquivos enviados aqui funcionam normalmente agora, mas
+          podem ser perdidos depois de um tempo ou quando uma nova versão for publicada. Para tornar os
+          uploads permanentes, configure o Vercel Blob (veja a seção 5 do README do projeto).
+        </div>
+      )}
 
       <div className="mt-8 space-y-10">
         <ComprovantesUploader />
@@ -37,10 +55,42 @@ export default function AnexarPage() {
   );
 }
 
+// Limite de payload das funções serverless do Vercel: 4,5MB por requisição.
+// Usamos uma margem de segurança e enviamos em lotes automáticos, em vez de
+// tudo de uma vez — assim funciona mesmo anexando 100+ comprovantes juntos.
+const MAX_BATCH_BYTES = 3.5 * 1024 * 1024;
+const MAX_FILES_PER_BATCH = 25;
+const MAX_SINGLE_FILE_BYTES = 4 * 1024 * 1024;
+
+function montarLotes(arquivos: File[]): { lotes: File[][]; grandesDemais: File[] } {
+  const grandesDemais = arquivos.filter((f) => f.size > MAX_SINGLE_FILE_BYTES);
+  const elegiveis = arquivos.filter((f) => f.size <= MAX_SINGLE_FILE_BYTES);
+
+  const lotes: File[][] = [];
+  let atual: File[] = [];
+  let tamanhoAtual = 0;
+
+  for (const f of elegiveis) {
+    const estourouTamanho = tamanhoAtual + f.size > MAX_BATCH_BYTES;
+    const estourouQtd = atual.length >= MAX_FILES_PER_BATCH;
+    if ((estourouTamanho || estourouQtd) && atual.length > 0) {
+      lotes.push(atual);
+      atual = [];
+      tamanhoAtual = 0;
+    }
+    atual.push(f);
+    tamanhoAtual += f.size;
+  }
+  if (atual.length > 0) lotes.push(atual);
+
+  return { lotes, grandesDemais };
+}
+
 function ComprovantesUploader() {
   const [arquivos, setArquivos] = useState<File[]>([]);
   const [tipo, setTipo] = useState<TipoBeneficio | "AUTO">("AUTO");
   const [enviando, setEnviando] = useState(false);
+  const [progresso, setProgresso] = useState<string | null>(null);
   const [resultados, setResultados] = useState<ResultadoUpload[] | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -57,21 +107,52 @@ function ComprovantesUploader() {
   async function enviar() {
     if (arquivos.length === 0) return;
     setEnviando(true);
-    setResultados(null);
-    try {
-      const form = new FormData();
-      for (const f of arquivos) form.append("files", f);
-      if (tipo !== "AUTO") form.append("tipo", tipo);
+    setResultados([]);
 
-      const res = await fetch("/api/upload", { method: "POST", body: form });
-      const data = await res.json();
-      setResultados(data.resultados || []);
-      if (res.ok) setArquivos([]);
-    } catch {
-      setResultados([{ arquivo: "—", status: "erro", detalhe: "Falha de conexão ao enviar os arquivos." }]);
-    } finally {
-      setEnviando(false);
+    const { lotes, grandesDemais } = montarLotes(arquivos);
+
+    let acumulado: ResultadoUpload[] = grandesDemais.map((f) => ({
+      arquivo: f.name,
+      status: "erro",
+      detalhe: `Arquivo maior que ${(MAX_SINGLE_FILE_BYTES / (1024 * 1024)).toFixed(1)}MB — o servidor não aceita um único PDF tão grande. Comprima o arquivo e tente de novo.`,
+    }));
+    setResultados(acumulado);
+
+    for (let i = 0; i < lotes.length; i++) {
+      const lote = lotes[i];
+      setProgresso(
+        `Enviando lote ${i + 1} de ${lotes.length} (${lote.length} arquivo${lote.length > 1 ? "s" : ""})...`
+      );
+      try {
+        const form = new FormData();
+        for (const f of lote) form.append("files", f);
+        if (tipo !== "AUTO") form.append("tipo", tipo);
+
+        const res = await fetch("/api/upload", { method: "POST", body: form });
+        if (res.ok) {
+          const data = await res.json();
+          acumulado = [...acumulado, ...(data.resultados || [])];
+        } else {
+          let detalhe = `O servidor recusou este lote (erro ${res.status}).`;
+          if (res.status === 413) {
+            detalhe = "Lote ainda ficou grande demais para o servidor. Tente enviar menos arquivos de uma vez.";
+          }
+          acumulado = [...acumulado, ...lote.map((f) => ({ arquivo: f.name, status: "erro" as const, detalhe }))];
+        }
+      } catch {
+        acumulado = [
+          ...acumulado,
+          ...lote.map((f) => ({ arquivo: f.name, status: "erro" as const, detalhe: "Falha de conexão ao enviar este lote." })),
+        ];
+      }
+      setResultados([...acumulado]);
     }
+
+    setProgresso(null);
+    setEnviando(false);
+    const semErro = acumulado.every((r) => r.status === "ok");
+    if (semErro) setArquivos([]);
+    else setArquivos((prev) => prev.filter((f) => acumulado.find((r) => r.arquivo === f.name)?.status === "erro"));
   }
 
   return (
@@ -161,9 +242,18 @@ function ComprovantesUploader() {
           disabled={arquivos.length === 0 || enviando}
           className="ml-auto rounded-lg bg-orange px-4 py-2 text-sm font-medium text-onyx transition hover:bg-orange-soft disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {enviando ? "Enviando..." : `Enviar ${arquivos.length || ""} comprovante${arquivos.length === 1 ? "" : "s"}`}
+          {enviando
+            ? progresso || "Enviando..."
+            : `Enviar ${arquivos.length || ""} comprovante${arquivos.length === 1 ? "" : "s"}`}
         </button>
       </div>
+
+      {arquivos.length > 5 && !enviando && (
+        <p className="mt-2 text-xs text-muted">
+          Arquivos grandes ou em grande quantidade são enviados automaticamente em vários lotes pequenos, para
+          não esbarrar no limite do servidor.
+        </p>
+      )}
 
       {resultados && (
         <div className="mt-5 space-y-1.5">
