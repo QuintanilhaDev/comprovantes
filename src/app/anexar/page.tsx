@@ -1,0 +1,315 @@
+"use client";
+
+import { useCallback, useRef, useState } from "react";
+import clsx from "clsx";
+import type { TipoBeneficio } from "@/lib/types";
+
+type ResultadoUpload = {
+  arquivo: string;
+  status: "ok" | "erro";
+  detalhe?: string;
+  nomeDetectado?: string | null;
+  tipo?: TipoBeneficio;
+  funcionarioEncontrado?: boolean;
+};
+
+const TIPO_LABEL: Record<TipoBeneficio, string> = {
+  SALARIO: "Salário",
+  VT: "Vale Transporte",
+  AUXILIO: "Auxílio (VA)",
+  NAO_IDENTIFICADO: "Não identificado",
+};
+
+export default function AnexarPage() {
+  return (
+    <div className="mx-auto max-w-3xl px-4 pb-24 pt-8 sm:px-6">
+      <h1 className="font-display text-2xl font-semibold text-paper">Anexar arquivos</h1>
+      <p className="mt-1.5 text-sm text-muted">
+        Envie novos comprovantes em PDF assim que forem gerados, ou substitua a planilha de funcionários
+        quando houver contratações ou desligamentos.
+      </p>
+
+      <div className="mt-8 space-y-10">
+        <ComprovantesUploader />
+        <PlanilhaUploader />
+      </div>
+    </div>
+  );
+}
+
+function ComprovantesUploader() {
+  const [arquivos, setArquivos] = useState<File[]>([]);
+  const [tipo, setTipo] = useState<TipoBeneficio | "AUTO">("AUTO");
+  const [enviando, setEnviando] = useState(false);
+  const [resultados, setResultados] = useState<ResultadoUpload[] | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const addFiles = useCallback((fileList: FileList | File[]) => {
+    const pdfs = Array.from(fileList).filter((f) => f.name.toLowerCase().endsWith(".pdf"));
+    setArquivos((prev) => {
+      const nomesExistentes = new Set(prev.map((f) => f.name + f.size));
+      const novos = pdfs.filter((f) => !nomesExistentes.has(f.name + f.size));
+      return [...prev, ...novos];
+    });
+  }, []);
+
+  async function enviar() {
+    if (arquivos.length === 0) return;
+    setEnviando(true);
+    setResultados(null);
+    try {
+      const form = new FormData();
+      for (const f of arquivos) form.append("files", f);
+      if (tipo !== "AUTO") form.append("tipo", tipo);
+
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      const data = await res.json();
+      setResultados(data.resultados || []);
+      if (res.ok) setArquivos([]);
+    } catch {
+      setResultados([{ arquivo: "—", status: "erro", detalhe: "Falha de conexão ao enviar os arquivos." }]);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <section>
+      <h2 className="font-display text-base font-semibold text-paper">Novos comprovantes (PDF)</h2>
+      <p className="mt-1 text-sm text-muted">
+        A ferramenta tenta identificar automaticamente o nome, valor e tipo (VT, Auxílio ou Salário) a
+        partir do próprio PDF. Se não conseguir, você pode escolher o tipo manualmente abaixo.
+      </p>
+
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          addFiles(e.dataTransfer.files);
+        }}
+        onClick={() => inputRef.current?.click()}
+        className={clsx(
+          "mt-4 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-6 py-10 text-center transition",
+          dragOver ? "border-orange bg-orange/5" : "border-onyx-border bg-onyx-soft/40 hover:border-orange/40"
+        )}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf"
+          multiple
+          className="hidden"
+          onChange={(e) => e.target.files && addFiles(e.target.files)}
+        />
+        <svg className="h-7 w-7 text-orange" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.6}
+            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 8.25L12 3.75m0 0L7.5 8.25M12 3.75v12.75"
+          />
+        </svg>
+        <p className="text-sm text-paper">Arraste os PDFs aqui ou clique para escolher</p>
+        <p className="text-xs text-muted">Você pode selecionar vários arquivos de uma vez</p>
+      </div>
+
+      {arquivos.length > 0 && (
+        <div className="mt-4 space-y-1.5">
+          {arquivos.map((f, i) => (
+            <div
+              key={f.name + f.size}
+              className="flex items-center justify-between rounded-lg border border-onyx-border bg-onyx-soft/50 px-3 py-2 text-sm"
+            >
+              <span className="truncate text-paper">{f.name}</span>
+              <button
+                onClick={() => setArquivos((prev) => prev.filter((_, idx) => idx !== i))}
+                className="ml-2 shrink-0 text-muted hover:text-rose-400"
+                aria-label="Remover arquivo"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <label className="text-sm text-muted">
+          Tipo{" "}
+          <select
+            value={tipo}
+            onChange={(e) => setTipo(e.target.value as TipoBeneficio | "AUTO")}
+            className="ml-1.5 rounded-lg border border-onyx-border bg-onyx-soft px-2.5 py-1.5 text-sm text-paper outline-none focus:border-orange/50"
+          >
+            <option value="AUTO">Detectar automaticamente</option>
+            <option value="SALARIO">Salário</option>
+            <option value="VT">Vale Transporte</option>
+            <option value="AUXILIO">Auxílio (VA)</option>
+          </select>
+        </label>
+
+        <button
+          onClick={enviar}
+          disabled={arquivos.length === 0 || enviando}
+          className="ml-auto rounded-lg bg-orange px-4 py-2 text-sm font-medium text-onyx transition hover:bg-orange-soft disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {enviando ? "Enviando..." : `Enviar ${arquivos.length || ""} comprovante${arquivos.length === 1 ? "" : "s"}`}
+        </button>
+      </div>
+
+      {resultados && (
+        <div className="mt-5 space-y-1.5">
+          {resultados.map((r, i) => (
+            <div
+              key={i}
+              className={clsx(
+                "rounded-lg border px-3 py-2 text-sm",
+                r.status === "ok"
+                  ? "border-emerald-500/25 bg-emerald-500/[0.06]"
+                  : "border-rose-500/25 bg-rose-500/[0.06]"
+              )}
+            >
+              <p className="truncate text-paper">{r.arquivo}</p>
+              {r.status === "ok" ? (
+                <p className="mt-0.5 text-xs text-muted">
+                  {r.nomeDetectado && <span>Nome: {r.nomeDetectado} · </span>}
+                  {r.tipo && <span>Tipo: {TIPO_LABEL[r.tipo]} · </span>}
+                  {r.funcionarioEncontrado === false && (
+                    <span className="text-amber-300">funcionário não está na planilha atual</span>
+                  )}
+                  {r.funcionarioEncontrado === true && <span className="text-emerald-300">vinculado ✓</span>}
+                </p>
+              ) : (
+                <p className="mt-0.5 text-xs text-rose-300">{r.detalhe || "Não foi possível processar."}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PlanilhaUploader() {
+  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [confirmando, setConfirmando] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [resultado, setResultado] = useState<{ ok?: boolean; erro?: string; totalFuncionarios?: number; avisos?: string[] } | null>(
+    null
+  );
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function enviar() {
+    if (!arquivo) return;
+    setEnviando(true);
+    setResultado(null);
+    try {
+      const form = new FormData();
+      form.append("file", arquivo);
+      const res = await fetch("/api/upload-planilha", { method: "POST", body: form });
+      const data = await res.json();
+      setResultado(data);
+      if (res.ok) {
+        setArquivo(null);
+        setConfirmando(false);
+      }
+    } catch {
+      setResultado({ erro: "Falha de conexão ao enviar a planilha." });
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <section>
+      <h2 className="font-display text-base font-semibold text-paper">Atualizar planilha de funcionários</h2>
+      <p className="mt-1 text-sm text-muted">
+        Envie a nova versão da planilha (mesmo formato da original, aba <code className="text-orange/90">BASE FATURAMENTO</code>) sempre que houver admissão ou desligamento. Isso{" "}
+        <strong className="text-paper">substitui</strong> a lista de funcionários usada na busca — o
+        histórico de comprovantes já enviados não é apagado.
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          className="hidden"
+          onChange={(e) => {
+            setArquivo(e.target.files?.[0] || null);
+            setConfirmando(false);
+            setResultado(null);
+          }}
+        />
+        <button
+          onClick={() => inputRef.current?.click()}
+          className="rounded-lg border border-onyx-border bg-onyx-soft px-4 py-2 text-sm text-paper transition hover:border-orange/40"
+        >
+          Escolher planilha (.xlsx)
+        </button>
+        {arquivo && <span className="text-sm text-muted">{arquivo.name}</span>}
+      </div>
+
+      {arquivo && !confirmando && (
+        <button
+          onClick={() => setConfirmando(true)}
+          className="mt-4 rounded-lg bg-orange px-4 py-2 text-sm font-medium text-onyx transition hover:bg-orange-soft"
+        >
+          Continuar
+        </button>
+      )}
+
+      {confirmando && (
+        <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/[0.06] p-4">
+          <p className="text-sm text-paper">
+            Tem certeza? Isso vai substituir a base de <strong>{arquivo?.name}</strong> como lista oficial de
+            funcionários usada na busca.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={enviar}
+              disabled={enviando}
+              className="rounded-lg bg-amber-400 px-3.5 py-1.5 text-sm font-medium text-onyx transition hover:bg-amber-300 disabled:opacity-50"
+            >
+              {enviando ? "Enviando..." : "Sim, substituir"}
+            </button>
+            <button
+              onClick={() => setConfirmando(false)}
+              className="rounded-lg border border-onyx-border px-3.5 py-1.5 text-sm text-muted transition hover:text-paper"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {resultado && (
+        <div
+          className={clsx(
+            "mt-4 rounded-lg border px-4 py-3 text-sm",
+            resultado.erro
+              ? "border-rose-500/25 bg-rose-500/[0.06] text-rose-300"
+              : "border-emerald-500/25 bg-emerald-500/[0.06] text-emerald-300"
+          )}
+        >
+          {resultado.erro || `Planilha atualizada: ${resultado.totalFuncionarios} funcionários carregados.`}
+          {resultado.avisos && resultado.avisos.length > 0 && (
+            <ul className="mt-1.5 list-disc pl-4 text-xs text-amber-300">
+              {resultado.avisos.map((a, i) => (
+                <li key={i}>{a}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
