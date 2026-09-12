@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import "./globals.css";
 import MouseGlow from "@/components/MouseGlow";
+import { getPagamentos } from "@/lib/data";
 
 export const metadata: Metadata = {
   title: "Comprovantes TRE · Busca de pagamentos",
@@ -15,7 +16,10 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const pagamentos = await getPagamentos();
+  const totalAlertas = pagamentos.filter((p) => p.situacao === "Cancelado" || p.situacao === "Rejeitado").length;
+
   return (
     <html lang="pt-BR">
       <body>
@@ -37,6 +41,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   className="rounded-md px-3 py-1.5 text-muted transition hover:bg-onyx-elevated hover:text-paper"
                 >
                   Buscar
+                </Link>
+                <Link
+                  href="/alertas"
+                  className="relative rounded-md px-3 py-1.5 text-muted transition hover:bg-onyx-elevated hover:text-paper"
+                >
+                  Alertas
+                  {totalAlertas > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold text-white">
+                      {totalAlertas > 99 ? "99+" : totalAlertas}
+                    </span>
+                  )}
                 </Link>
                 <Link
                   href="/anexar"

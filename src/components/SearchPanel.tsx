@@ -5,6 +5,28 @@ import Link from "next/link";
 import clsx from "clsx";
 import type { Funcionario } from "@/lib/types";
 
+const CHAVE_RECENTES = "comprovantes-tre:recentes";
+const MAX_RECENTES = 6;
+
+type Recente = { id: string; nome: string };
+
+function lerRecentes(): Recente[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(CHAVE_RECENTES);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function salvarRecente(item: Recente) {
+  if (typeof window === "undefined") return;
+  const atuais = lerRecentes().filter((r) => r.id !== item.id);
+  const novos = [item, ...atuais].slice(0, MAX_RECENTES);
+  window.localStorage.setItem(CHAVE_RECENTES, JSON.stringify(novos));
+}
+
 interface Resultado {
   id: string;
   funcionario: Funcionario;
@@ -22,12 +44,14 @@ export default function SearchPanel() {
   const [resultados, setResultados] = useState<Resultado[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [buscou, setBuscou] = useState(false);
+  const [recentes, setRecentes] = useState<Recente[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
+    setRecentes(lerRecentes());
     function onSlash(e: KeyboardEvent) {
       if (e.key === "/" && document.activeElement !== inputRef.current) {
         e.preventDefault();
@@ -132,6 +156,7 @@ export default function SearchPanel() {
             <Link
               key={r.id}
               href={`/funcionario/${encodeURIComponent(r.id)}`}
+              onClick={() => salvarRecente({ id: r.id, nome: r.funcionario.nome })}
               className="group flex animate-fade-up items-center justify-between gap-3 rounded-xl border border-onyx-border bg-onyx-soft/70 px-4 py-3.5 transition hover:border-orange/40 hover:bg-onyx-elevated sm:px-5"
               style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}
             >
@@ -179,6 +204,23 @@ export default function SearchPanel() {
               </div>
             </Link>
           ))}
+
+        {!query && recentes.length > 0 && (
+          <div className="animate-fade-up">
+            <p className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-muted">Buscas recentes</p>
+            <div className="flex flex-wrap gap-2">
+              {recentes.map((r) => (
+                <Link
+                  key={r.id}
+                  href={`/funcionario/${encodeURIComponent(r.id)}`}
+                  className="rounded-full border border-onyx-border bg-onyx-soft/60 px-3 py-1.5 text-xs text-muted transition hover:border-orange/40 hover:text-paper"
+                >
+                  {r.nome}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

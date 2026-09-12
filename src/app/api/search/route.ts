@@ -20,9 +20,9 @@ export async function GET(req: NextRequest) {
   const ranked = searchFuncionarios(q, funcionarios, 20);
 
   const resultados = ranked.map(({ funcionario, score }) => {
-    const cpf = funcionario.cpf;
-    const pagsDoFunc = pagamentos.filter((p) => (cpf && p.cpf === cpf) || p.nomeNorm === funcionario.nomeNorm);
-    const docsDoFunc = documentos.filter((d) => (cpf && d.cpf === cpf) || d.nomeNorm === funcionario.nomeNorm);
+    const id = employeeId(funcionario);
+    const pagsDoFunc = pagamentos.filter((p) => p.funcionarioResolvidoId === id);
+    const docsDoFunc = documentos.filter((d) => d.funcionarioResolvidoId === id);
     const alertas = pagsDoFunc.filter((p) => p.situacao === "Cancelado" || p.situacao === "Rejeitado").length;
     const datas = [...pagsDoFunc.map((p) => p.data), ...docsDoFunc.map((d) => d.data)].filter(
       Boolean
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     const ultimaAtualizacao = datas.sort().at(-1) || null;
 
     return {
-      id: employeeId(funcionario),
+      id,
       funcionario,
       score,
       resumo: {

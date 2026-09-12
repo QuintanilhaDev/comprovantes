@@ -81,7 +81,9 @@ Sempre que quiser rodar de novo depois de fechar o terminal, é só repetir o pa
 ### Busca
 
 Digite o nome (com pequenos erros de digitação, funciona) ou o CPF (com ou sem pontos e
-traço) na busca da tela inicial. Clique no funcionário para ver:
+traço) na busca da tela inicial. A busca também reconhece nomes abreviados/truncados
+como costumam aparecer em comprovantes bancários (ex: "Sharlston C Santos" é reconhecido
+como a mesma pessoa que "Sharlston Cardoso Santos"). Clique no funcionário para ver:
 
 - Os comprovantes em PDF, separados por **Salário / Vale Transporte / Auxílio**;
 - Um aviso destacado em vermelho se algum pagamento apareceu como **Cancelado** ou
@@ -90,14 +92,33 @@ traço) na busca da tela inicial. Clique no funcionário para ver:
 - O histórico completo do relatório do banco (mesmo quando não existe um PDF individual
   daquele pagamento).
 
+### Painel de alertas
+
+O link **"Alertas"** no topo da página (com um contador vermelho quando há pendências)
+leva a uma lista com **todos** os funcionários que têm algum pagamento cancelado ou
+rejeitado nos relatórios do banco — útil para conferir proativamente, sem precisar
+buscar nome por nome, quem realmente não recebeu algo.
+
+### Comprovantes sem tipo identificado
+
+Quando a ferramenta não consegue confirmar automaticamente se um comprovante é Salário,
+VT ou Auxílio (geralmente porque não há relatório do banco cobrindo aquele período),
+ele aparece na seção **"Comprovantes não classificados"** da página do funcionário, com
+um seletor **"Classificar"** ao lado — escolha o tipo manualmente e a escolha fica salva
+permanentemente.
+
 ### Anexar novos arquivos
 
 Na tela **"Anexar arquivos"** (canto superior direito) você pode:
 
-- **Enviar novos comprovantes em PDF** conforme forem sendo gerados. A ferramenta tenta
-  identificar automaticamente o nome do funcionário, o valor e o tipo (VT, Auxílio ou
-  Salário) a partir do próprio arquivo. Quando não conseguir identificar o tipo com
-  certeza, você pode escolher manualmente antes de enviar.
+- **Enviar novos comprovantes em PDF** conforme forem sendo gerados — tanto comprovantes
+  individuais (um PDF por funcionário) quanto **relatórios em lote do banco** (a tabela
+  com vários funcionários, tipo "Retorno Bancário" ou "PIX VT e VA"). A ferramenta
+  identifica automaticamente qual é qual: comprovantes individuais têm o tipo detectado
+  a partir do próprio arquivo (ou você escolhe manualmente); relatórios em lote alimentam
+  o histórico de todos os funcionários encontrados neles de uma vez, e ainda tentam
+  reclassificar automaticamente comprovantes antigos que estavam "não identificados"
+  (só quando há uma correspondência exata de valor, para evitar classificar errado).
 - **Atualizar a planilha de funcionários** quando houver admissão ou desligamento —
   envie a nova versão da planilha (mesmo formato/colunas da original) e a lista usada na
   busca é atualizada. O histórico de comprovantes já enviados **não é apagado**.

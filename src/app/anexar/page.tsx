@@ -11,6 +11,9 @@ type ResultadoUpload = {
   nomeDetectado?: string | null;
   tipo?: TipoBeneficio;
   funcionarioEncontrado?: boolean;
+  ehRelatorioEmLote?: boolean;
+  linhasEncontradas?: number;
+  linhasVinculadas?: number;
 };
 
 const TIPO_LABEL: Record<TipoBeneficio, string> = {
@@ -92,6 +95,7 @@ function ComprovantesUploader() {
   const [enviando, setEnviando] = useState(false);
   const [progresso, setProgresso] = useState<string | null>(null);
   const [resultados, setResultados] = useState<ResultadoUpload[] | null>(null);
+  const [reclassificados, setReclassificados] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -108,6 +112,7 @@ function ComprovantesUploader() {
     if (arquivos.length === 0) return;
     setEnviando(true);
     setResultados([]);
+    setReclassificados(0);
 
     const { lotes, grandesDemais } = montarLotes(arquivos);
 
@@ -117,6 +122,7 @@ function ComprovantesUploader() {
       detalhe: `Arquivo maior que ${(MAX_SINGLE_FILE_BYTES / (1024 * 1024)).toFixed(1)}MB — o servidor não aceita um único PDF tão grande. Comprima o arquivo e tente de novo.`,
     }));
     setResultados(acumulado);
+    let totalReclassificados = 0;
 
     for (let i = 0; i < lotes.length; i++) {
       const lote = lotes[i];
@@ -132,6 +138,7 @@ function ComprovantesUploader() {
         if (res.ok) {
           const data = await res.json();
           acumulado = [...acumulado, ...(data.resultados || [])];
+          totalReclassificados += data.reclassificados || 0;
         } else {
           let detalhe = `O servidor recusou este lote (erro ${res.status}).`;
           if (res.status === 413) {
@@ -146,6 +153,7 @@ function ComprovantesUploader() {
         ];
       }
       setResultados([...acumulado]);
+      setReclassificados(totalReclassificados);
     }
 
     setProgresso(null);
@@ -159,8 +167,10 @@ function ComprovantesUploader() {
     <section>
       <h2 className="font-display text-base font-semibold text-paper">Novos comprovantes (PDF)</h2>
       <p className="mt-1 text-sm text-muted">
-        A ferramenta tenta identificar automaticamente o nome, valor e tipo (VT, Auxílio ou Salário) a
-        partir do próprio PDF. Se não conseguir, você pode escolher o tipo manualmente abaixo.
+        Aceita tanto comprovantes individuais (um PDF por funcionário) quanto relatórios em lote do banco
+        (uma tabela com vários funcionários, tipo &ldquo;Retorno Bancário&rdquo; ou &ldquo;PIX VT e VA&rdquo;) — a
+        ferramenta identifica automaticamente qual é qual, e usa os relatórios em lote para reclassificar
+        comprovantes antigos que ainda estavam sem tipo definido.
       </p>
 
       <div
@@ -257,6 +267,13 @@ function ComprovantesUploader() {
 
       {resultados && (
         <div className="mt-5 space-y-1.5">
+          {reclassificados > 0 && (
+            <div className="mb-2 rounded-lg border border-orange/30 bg-orange/[0.08] px-3 py-2 text-sm text-orange">
+              ✨ {reclassificados} comprovante{reclassificados > 1 ? "s" : ""} que antes estava
+              {reclassificados > 1 ? "m" : ""} como &ldquo;não identificado&rdquo; {reclassificados > 1 ? "foram" : "foi"}{" "}
+              reclassificado{reclassificados > 1 ? "s" : ""} automaticamente com base nestes relatórios.
+            </div>
+          )}
           {resultados.map((r, i) => (
             <div
               key={i}
@@ -268,7 +285,13 @@ function ComprovantesUploader() {
               )}
             >
               <p className="truncate text-paper">{r.arquivo}</p>
-              {r.status === "ok" ? (
+              {r.status === "ok" && r.ehRelatorioEmLote ? (
+                <p className="mt-0.5 text-xs text-muted">
+                  <span className="text-sky-300">Relatório em lote detectado</span> · {r.linhasEncontradas} registro
+                  {r.linhasEncontradas !== 1 ? "s" : ""} encontrado{r.linhasEncontradas !== 1 ? "s" : ""} ·{" "}
+                  {r.linhasVinculadas} vinculado{r.linhasVinculadas !== 1 ? "s" : ""} a funcionários da planilha
+                </p>
+              ) : r.status === "ok" ? (
                 <p className="mt-0.5 text-xs text-muted">
                   {r.nomeDetectado && <span>Nome: {r.nomeDetectado} · </span>}
                   {r.tipo && <span>Tipo: {TIPO_LABEL[r.tipo]} · </span>}

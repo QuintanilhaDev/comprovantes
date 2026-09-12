@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addDocumentos, addPagamentos, getFuncionarios } from "@/lib/data";
+import { addDocumentos, addPagamentos, getFuncionarios, reclassificarNaoIdentificados } from "@/lib/data";
 import { parseReceiptPdf } from "@/lib/pdfExtract";
+import {
+  linhasParaPagamentos,
+  pareceLotePix,
+  pareceRelatorioDeLote,
+  parseLotePix,
+  parseRelatorioDeLote,
+} from "@/lib/batchExtract";
 import { saveUploadedFile } from "@/lib/storage";
 import { normalizeCpf } from "@/lib/normalize";
 import type { Documento, Pagamento, TipoBeneficio } from "@/lib/types";
@@ -38,6 +45,9 @@ export async function POST(req: NextRequest) {
     nomeDetectado?: string | null;
     tipo?: TipoBeneficio;
     funcionarioEncontrado?: boolean;
+    ehRelatorioEmLote?: boolean;
+    linhasEncontradas?: number;
+    linhasVinculadas?: number;
   }> = [];
 
   for (const file of files) {
@@ -47,6 +57,54 @@ export async function POST(req: NextRequest) {
     }
     try {
       const bytes = Buffer.from(await file.arrayBuffer());
+
+      // Primeiro, tenta ler o texto completo do PDF para checar se é um
+      // relatório em lote (uma tabela com vários funcionários) em vez de um
+      // comprovante individual.
+      let textoCompleto = "";
+      try {
+        const pdfParse = (await import("pdf-parse")).default;
+        const resultado = await pdfParse(bytes);
+        textoCompleto = resultado.text || "";
+      } catch {
+        textoCompleto = "";
+      }
+
+      if (textoCompleto && pareceRelatorioDeLote(textoCompleto)) {
+        const { periodo, linhas } = parseRelatorioDeLote(textoCompleto);
+        if (linhas.length > 0) {
+          const pagamentos = linhasParaPagamentos(linhas, periodo, file.name, "upload_lote_bancario");
+          novosPagamentos.push(...pagamentos);
+          const vinculados = linhas.filter((l) => porNome.has(l.nomeNorm) || (l.cpf && funcionarios.some((f) => f.cpf === l.cpf))).length;
+          resultados.push({
+            arquivo: file.name,
+            status: "ok",
+            ehRelatorioEmLote: true,
+            linhasEncontradas: linhas.length,
+            linhasVinculadas: vinculados,
+          });
+          continue;
+        }
+      }
+
+      if (textoCompleto && pareceLotePix(textoCompleto)) {
+        const linhas = parseLotePix(textoCompleto);
+        if (linhas.length > 0) {
+          const pagamentos = linhasParaPagamentos(linhas, null, file.name, "upload_pix_lote");
+          novosPagamentos.push(...pagamentos);
+          const vinculados = linhas.filter((l) => porNome.has(l.nomeNorm) || (l.cpf && funcionarios.some((f) => f.cpf === l.cpf))).length;
+          resultados.push({
+            arquivo: file.name,
+            status: "ok",
+            ehRelatorioEmLote: true,
+            linhasEncontradas: linhas.length,
+            linhasVinculadas: vinculados,
+          });
+          continue;
+        }
+      }
+
+      // Não é um relatório em lote — trata como comprovante individual de uma pessoa.
       const parsed = await parseReceiptPdf(file.name, bytes, tipoManual);
 
       const relPath = `uploads/${Date.now()}-${file.name.replace(/[^\w.\-]+/g, "_")}`;
@@ -100,8 +158,15 @@ export async function POST(req: NextRequest) {
 
   if (novosDocumentos.length > 0) {
     await addDocumentos(novosDocumentos);
+  }
+  if (novosPagamentos.length > 0) {
     await addPagamentos(novosPagamentos);
   }
 
-  return NextResponse.json({ resultados });
+  let reclassificados = 0;
+  if (novosPagamentos.length > 0) {
+    reclassificados = await reclassificarNaoIdentificados();
+  }
+
+  return NextResponse.json({ resultados, reclassificados });
 }

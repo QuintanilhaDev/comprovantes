@@ -21,12 +21,26 @@ export function onlyDigits(input: string | null | undefined): string {
   return input.replace(/\D/g, "");
 }
 
-/** Normaliza um CPF para 11 dígitos com zeros à esquerda, ou string vazia se inválido. */
+/**
+ * Normaliza um CPF para 11 dígitos, ou string vazia se inválido/incompleto.
+ * Importante: CPFs parcialmente mascarados (ex: "***.512.005-**", comum em
+ * comprovantes de PIX) têm menos de 11 dígitos — nesse caso retornamos vazio
+ * em vez de completar com zeros à esquerda, o que criaria um CPF inventado
+ * e poderia vincular o comprovante à pessoa errada.
+ */
 export function normalizeCpf(input: string | number | null | undefined): string {
   if (input === null || input === undefined) return "";
-  const digits = onlyDigits(String(input));
+  const raw = String(input);
+  const digits = onlyDigits(raw);
   if (!digits) return "";
-  return digits.padStart(11, "0").slice(-11);
+  // Número puro (ex: vindo da planilha como int) pode ter perdido zeros à
+  // esquerda — nesse caso é seguro completar, pois não há mascaramento.
+  const pareceMascarado = /[*xX]/.test(raw);
+  if (pareceMascarado) {
+    return digits.length === 11 ? digits : "";
+  }
+  if (digits.length > 11) return digits.slice(-11);
+  return digits.padStart(11, "0");
 }
 
 /** Formata um CPF de 11 dígitos como 000.000.000-00. */

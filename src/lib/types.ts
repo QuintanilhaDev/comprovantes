@@ -38,7 +38,7 @@ export interface Pagamento {
   situacao: Situacao;
   motivo?: string | null;
   fonteArquivo: string;
-  origem: "relatorio_lote" | "pix_individual_lote" | "upload_manual";
+  origem: "relatorio_lote" | "pix_individual_lote" | "upload_manual" | "upload_lote_bancario" | "upload_pix_lote";
 }
 
 /** Um comprovante em PDF (documento) que pode ser exibido/baixado. */

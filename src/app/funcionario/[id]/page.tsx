@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDocumentos, getFuncionarios, getPagamentos } from "@/lib/data";
-import { employeeId, findEmployeeById } from "@/lib/employeeId";
+import { getExtratoFuncionario, getFuncionarios } from "@/lib/data";
+import { findEmployeeById } from "@/lib/employeeId";
 import { SituacaoBadge, TipoBadge } from "@/components/Badge";
+import ClassificarDocumento from "@/components/ClassificarDocumento";
 import { formatBRL, isoDateToBr } from "@/lib/normalize";
-import type { Documento, Pagamento, TipoBeneficio } from "@/lib/types";
+import type { DocumentoResolvido, PagamentoResolvido } from "@/lib/data";
+import type { TipoBeneficio } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -20,24 +22,13 @@ export default async function FuncionarioPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const decodedId = decodeURIComponent(id);
 
-  const [funcionarios, pagamentos, documentos] = await Promise.all([
-    getFuncionarios(),
-    getPagamentos(),
-    getDocumentos(),
-  ]);
-
+  const funcionarios = await getFuncionarios();
   const funcionario = findEmployeeById(funcionarios, decodedId);
 
-  const cpf = funcionario?.cpf || decodedId;
-  const nomeNormAlvo = funcionario?.nomeNorm;
-
-  const pagamentosDoFuncionario = pagamentos
-    .filter((p) => (cpf && p.cpf === cpf) || (nomeNormAlvo && p.nomeNorm === nomeNormAlvo))
-    .sort((a, b) => (b.data || "").localeCompare(a.data || ""));
-
-  const documentosDoFuncionario = documentos
-    .filter((d) => (cpf && d.cpf === cpf) || (nomeNormAlvo && d.nomeNorm === nomeNormAlvo))
-    .sort((a, b) => (b.data || "").localeCompare(a.data || ""));
+  const { pagamentos: pagamentosDoFuncionario, documentos: documentosDoFuncionario } = await getExtratoFuncionario(
+    funcionario,
+    decodedId
+  );
 
   if (!funcionario && pagamentosDoFuncionario.length === 0 && documentosDoFuncionario.length === 0) {
     notFound();
@@ -47,13 +38,14 @@ export default async function FuncionarioPage({ params }: { params: Promise<{ id
     (p) => p.situacao === "Cancelado" || p.situacao === "Rejeitado"
   );
 
-  const docsPorTipo = new Map<TipoBeneficio, Documento[]>();
+  const docsPorTipo = new Map<TipoBeneficio, DocumentoResolvido[]>();
   for (const tipo of ORDEM_TIPOS) docsPorTipo.set(tipo, []);
   for (const d of documentosDoFuncionario) {
     docsPorTipo.get(d.tipo)?.push(d);
   }
 
-  const nomeExibido = funcionario?.nome || documentosDoFuncionario[0]?.nome || pagamentosDoFuncionario[0]?.nome || "Funcionário";
+  const nomeExibido =
+    funcionario?.nome || documentosDoFuncionario[0]?.nome || pagamentosDoFuncionario[0]?.nome || "Funcionário";
 
   return (
     <div className="mx-auto max-w-3xl px-4 pb-20 pt-6 sm:px-6">
@@ -94,10 +86,20 @@ export default async function FuncionarioPage({ params }: { params: Promise<{ id
             <Field label="Vínculo" value={funcionario.vinculo} />
             <Field label="Admissão" value={funcionario.admissao ? isoDateToBr(funcionario.admissao) : null} />
             <Field label="Optante VT" value={funcionario.optanteVT ? "Sim" : "Não"} />
-            <Field label="Banco" value={funcionario.banco ? `${funcionario.banco} · ag. ${funcionario.agencia || "—"}` : null} />
+            <Field
+              label="Banco"
+              value={funcionario.banco ? `${funcionario.banco} · ag. ${funcionario.agencia || "—"}` : null}
+            />
             <Field label="Telefone" value={funcionario.telefone} />
             <Field label="Zona/Município" value={funcionario.municipioZona} />
           </dl>
+        )}
+
+        {!funcionario && (
+          <p className="mt-4 rounded-lg border border-amber-400/25 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-200">
+            Este nome/CPF não está na planilha de funcionários atual — os registros abaixo vieram de
+            comprovantes ou relatórios enviados diretamente.
+          </p>
         )}
       </div>
 
@@ -147,14 +149,16 @@ export default async function FuncionarioPage({ params }: { params: Promise<{ id
               </h2>
               <div className="space-y-2">
                 {docs.map((d) => (
-                  <a
+                  <div
                     key={d.id}
-                    href={`/api/comprovante/${encodeURIComponent(d.id)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="flex items-center justify-between gap-3 rounded-xl border border-onyx-border bg-onyx-soft/60 px-4 py-3 transition hover:border-orange/40 hover:bg-onyx-elevated"
                   >
-                    <div className="flex min-w-0 items-center gap-3">
+                    <a
+                      href={`/api/comprovante/${encodeURIComponent(d.id)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex min-w-0 flex-1 items-center gap-3"
+                    >
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange/10 text-orange">
                         <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path
@@ -173,9 +177,12 @@ export default async function FuncionarioPage({ params }: { params: Promise<{ id
                           {d.origemUpload ? " · Enviado manualmente" : ""}
                         </p>
                       </div>
+                    </a>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {tipo === "NAO_IDENTIFICADO" && <ClassificarDocumento documentoId={d.id} />}
+                      <SituacaoBadge situacao={d.situacao} />
                     </div>
-                    <SituacaoBadge situacao={d.situacao} className="shrink-0" />
-                  </a>
+                  </div>
                 ))}
               </div>
             </section>
@@ -194,6 +201,9 @@ export default async function FuncionarioPage({ params }: { params: Promise<{ id
         <div className="mt-8">
           <h2 className="mb-2.5 font-display text-sm font-semibold uppercase tracking-wide text-muted">
             Histórico no relatório do banco
+            <span className="ml-2 rounded-full bg-onyx-elevated px-2 py-0.5 text-[11px] font-normal text-muted">
+              {pagamentosDoFuncionario.length}
+            </span>
           </h2>
           <div className="overflow-hidden rounded-xl border border-onyx-border">
             <table className="w-full text-left text-sm">
@@ -228,7 +238,7 @@ function Field({ label, value }: { label: string; value: string | number | null 
   );
 }
 
-function PagamentoRow({ p }: { p: Pagamento }) {
+function PagamentoRow({ p }: { p: PagamentoResolvido }) {
   const problema = p.situacao === "Cancelado" || p.situacao === "Rejeitado";
   return (
     <tr className={problema ? "bg-rose-500/[0.04]" : undefined}>
