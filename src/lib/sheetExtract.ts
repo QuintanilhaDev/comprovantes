@@ -90,7 +90,7 @@ export function parseEmployeesSpreadsheet(bytes: Buffer): { funcionarios: Funcio
     const admissao = toIsoMaybe(get(r, col.admissao));
     const desligamento = toIsoMaybe(get(r, col.desligamento));
     const optanteVTraw = get(r, col.optanteVT);
-    const optanteVT = typeof optanteVTraw === "string" && optanteVTraw.trim().toUpperCase() === "SIM";
+    const optanteVT = interpretarOptanteVT(optanteVTraw);
 
     funcionarios.push({
       cpf,
@@ -147,6 +147,24 @@ function encontrarColuna(headers: string[], candidatos: string[], excluir: strin
     if (idx !== -1) return idx;
   }
   return -1;
+}
+
+/**
+ * Interpreta a coluna "Optante do Vale Transporte" com tolerância a variações
+ * (Sim/S/Verdadeiro/x ou Não/N/Falso), mas SEM adivinhar: se o valor não for
+ * claramente um "sim" ou um "não" (por exemplo, se por algum desalinhamento de
+ * coluna vier um telefone ou um código de banco), retorna null — "não sei" —
+ * em vez de assumir false. Isso é importante porque, na hora de mesclar com os
+ * dados já existentes, um valor desconhecido preserva o que já estava
+ * cadastrado, em vez de apagar um "Sim" correto por engano.
+ */
+function interpretarOptanteVT(raw: unknown): boolean | null {
+  if (typeof raw === "boolean") return raw;
+  if (typeof raw !== "string") return null;
+  const v = normalizarTexto(raw);
+  if (["SIM", "S", "X", "VERDADEIRO", "TRUE", "1"].includes(v)) return true;
+  if (["NAO", "N", "FALSO", "FALSE", "0"].includes(v)) return false;
+  return null;
 }
 
 function toIsoMaybe(value: unknown): string | null {

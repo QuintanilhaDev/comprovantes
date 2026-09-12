@@ -85,7 +85,10 @@ export default async function FuncionarioPage({ params }: { params: Promise<{ id
           <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-onyx-border pt-4 text-sm sm:grid-cols-3">
             <Field label="Vínculo" value={funcionario.vinculo} />
             <Field label="Admissão" value={funcionario.admissao ? isoDateToBr(funcionario.admissao) : null} />
-            <Field label="Optante VT" value={funcionario.optanteVT ? "Sim" : "Não"} />
+            <Field
+              label="Optante VT"
+              value={funcionario.optanteVT === null || funcionario.optanteVT === undefined ? "Não informado" : funcionario.optanteVT ? "Sim" : "Não"}
+            />
             <Field
               label="Banco"
               value={funcionario.banco ? `${funcionario.banco} · ag. ${funcionario.agencia || "—"}` : null}

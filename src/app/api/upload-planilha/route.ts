@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseEmployeesSpreadsheet } from "@/lib/sheetExtract";
-import { replaceFuncionarios } from "@/lib/data";
+import { mesclarNovaPlanilha } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,11 +26,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ erro: "Planilha vazia ou em formato inesperado.", avisos }, { status: 400 });
     }
 
-    await replaceFuncionarios(funcionarios);
+    // Mescla em vez de substituir: quem já existe (mesmo CPF) é atualizado
+    // campo a campo (com validação de formato), quem é novo é adicionado, e
+    // quem não está na planilha nova continua cadastrado.
+    const { novosAdicionados, atualizados, mantidosSemAlteracao, resultado } = await mesclarNovaPlanilha(
+      funcionarios
+    );
 
     return NextResponse.json({
       ok: true,
-      totalFuncionarios: funcionarios.length,
+      totalNaPlanilhaEnviada: funcionarios.length,
+      totalFuncionarios: resultado.length,
+      novosAdicionados,
+      atualizados,
+      mantidosSemAlteracao,
       avisos,
     });
   } catch (err) {

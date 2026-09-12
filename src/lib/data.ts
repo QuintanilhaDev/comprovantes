@@ -140,9 +140,13 @@ export async function addPagamentos(novos: Pagamento[]) {
   invalidateCache();
 }
 
-export async function replaceFuncionarios(novos: Funcionario[]) {
-  await writeMutableJson("employees_override", novos);
+export async function mesclarNovaPlanilha(novos: Funcionario[]) {
+  const atuais = await getFuncionarios();
+  const { mesclarFuncionarios } = await import("./mergeFuncionarios");
+  const resultado = mesclarFuncionarios(atuais, novos);
+  await writeMutableJson("employees_override", resultado.resultado);
   invalidateCache();
+  return resultado;
 }
 
 /** Permite que o usuário classifique manualmente um comprovante que não pôde ser identificado automaticamente. */

@@ -15,7 +15,7 @@ export interface Funcionario {
   banco?: string | null;
   agencia?: string | null;
   conta?: string | null;
-  optanteVT?: boolean;
+  optanteVT?: boolean | null;
   telefone?: string | null;
   desligamento?: string | null;
   funcao?: string | null;

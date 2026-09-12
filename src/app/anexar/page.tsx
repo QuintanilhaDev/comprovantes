@@ -65,15 +65,25 @@ const MAX_BATCH_BYTES = 3.5 * 1024 * 1024;
 const MAX_FILES_PER_BATCH = 25;
 const MAX_SINGLE_FILE_BYTES = 4 * 1024 * 1024;
 
+// Relatórios em lote do banco (que têm dezenas de páginas) demoram bem mais para
+// processar no servidor do que um comprovante individual — e o Vercel encerra a
+// função depois de alguns segundos (10s no plano Hobby, sem exceção). Por isso,
+// qualquer arquivo "pesado" vai sozinho em sua própria requisição, para não
+// competir por tempo com os outros arquivos do mesmo lote e estourar o limite.
+const LIMIAR_ARQUIVO_PESADO = 150 * 1024;
+
 function montarLotes(arquivos: File[]): { lotes: File[][]; grandesDemais: File[] } {
   const grandesDemais = arquivos.filter((f) => f.size > MAX_SINGLE_FILE_BYTES);
   const elegiveis = arquivos.filter((f) => f.size <= MAX_SINGLE_FILE_BYTES);
 
-  const lotes: File[][] = [];
+  const pesados = elegiveis.filter((f) => f.size > LIMIAR_ARQUIVO_PESADO);
+  const leves = elegiveis.filter((f) => f.size <= LIMIAR_ARQUIVO_PESADO);
+
+  const lotes: File[][] = pesados.map((f) => [f]); // cada arquivo pesado = 1 lote sozinho
+
   let atual: File[] = [];
   let tamanhoAtual = 0;
-
-  for (const f of elegiveis) {
+  for (const f of leves) {
     const estourouTamanho = tamanhoAtual + f.size > MAX_BATCH_BYTES;
     const estourouQtd = atual.length >= MAX_FILES_PER_BATCH;
     if ((estourouTamanho || estourouQtd) && atual.length > 0) {
@@ -315,9 +325,16 @@ function PlanilhaUploader() {
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const [resultado, setResultado] = useState<{ ok?: boolean; erro?: string; totalFuncionarios?: number; avisos?: string[] } | null>(
-    null
-  );
+  const [resultado, setResultado] = useState<{
+    ok?: boolean;
+    erro?: string;
+    totalNaPlanilhaEnviada?: number;
+    totalFuncionarios?: number;
+    novosAdicionados?: number;
+    atualizados?: number;
+    mantidosSemAlteracao?: number;
+    avisos?: string[];
+  } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function enviar() {
@@ -345,9 +362,10 @@ function PlanilhaUploader() {
     <section>
       <h2 className="font-display text-base font-semibold text-paper">Atualizar planilha de funcionários</h2>
       <p className="mt-1 text-sm text-muted">
-        Envie a nova versão da planilha (mesmo formato da original, aba <code className="text-orange/90">BASE FATURAMENTO</code>) sempre que houver admissão ou desligamento. Isso{" "}
-        <strong className="text-paper">substitui</strong> a lista de funcionários usada na busca — o
-        histórico de comprovantes já enviados não é apagado.
+        Envie a nova versão da planilha (mesmo formato da original, aba <code className="text-orange/90">BASE FATURAMENTO</code>) sempre que houver admissão ou desligamento. A ferramenta{" "}
+        <strong className="text-paper">mescla</strong> os dados em vez de substituir tudo: reconhece quem já
+        existe pelo CPF e só atualiza o que veio preenchido corretamente na nova planilha, adiciona quem for
+        novo, e mantém quem não aparecer nela — nada é apagado nem sobrescrito por engano.
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -383,8 +401,7 @@ function PlanilhaUploader() {
       {confirmando && (
         <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/[0.06] p-4">
           <p className="text-sm text-paper">
-            Tem certeza? Isso vai substituir a base de <strong>{arquivo?.name}</strong> como lista oficial de
-            funcionários usada na busca.
+            Mesclar <strong>{arquivo?.name}</strong> com a base de funcionários atual?
           </p>
           <div className="mt-3 flex gap-2">
             <button
@@ -392,7 +409,7 @@ function PlanilhaUploader() {
               disabled={enviando}
               className="rounded-lg bg-amber-400 px-3.5 py-1.5 text-sm font-medium text-onyx transition hover:bg-amber-300 disabled:opacity-50"
             >
-              {enviando ? "Enviando..." : "Sim, substituir"}
+              {enviando ? "Enviando..." : "Sim, mesclar"}
             </button>
             <button
               onClick={() => setConfirmando(false)}
@@ -413,7 +430,15 @@ function PlanilhaUploader() {
               : "border-emerald-500/25 bg-emerald-500/[0.06] text-emerald-300"
           )}
         >
-          {resultado.erro || `Planilha atualizada: ${resultado.totalFuncionarios} funcionários carregados.`}
+          {resultado.erro || (
+            <>
+              Planilha mesclada: {resultado.novosAdicionados ?? 0} funcionário
+              {resultado.novosAdicionados === 1 ? "" : "s"} novo{resultado.novosAdicionados === 1 ? "" : "s"},{" "}
+              {resultado.atualizados ?? 0} atualizado{resultado.atualizados === 1 ? "" : "s"} e{" "}
+              {resultado.mantidosSemAlteracao ?? 0} sem mudança. Total agora: {resultado.totalFuncionarios}{" "}
+              funcionários.
+            </>
+          )}
           {resultado.avisos && resultado.avisos.length > 0 && (
             <ul className="mt-1.5 list-disc pl-4 text-xs text-amber-300">
               {resultado.avisos.map((a, i) => (
