@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addDocumentos, addPagamentos, getFuncionarios, reclassificarNaoIdentificados } from "@/lib/data";
+import { addDocumentos, addPagamentos, getFuncionarios, getPagamentos, reclassificarNaoIdentificados } from "@/lib/data";
 import { parseReceiptPdf } from "@/lib/pdfExtract";
 import {
   linhasParaPagamentos,
@@ -8,6 +8,7 @@ import {
   parseLotePix,
   parseRelatorioDeLote,
 } from "@/lib/batchExtract";
+import { construirMapaValorTipo, sugerirTipoPorValor } from "@/lib/valorHeuristica";
 import { saveUploadedFile } from "@/lib/storage";
 import { normalizeCpf } from "@/lib/normalize";
 import type { Documento, Pagamento, TipoBeneficio } from "@/lib/types";
@@ -35,6 +36,12 @@ export async function POST(req: NextRequest) {
 
   const funcionarios = await getFuncionarios();
   const porNome = new Map(funcionarios.map((f) => [f.nomeNorm, f]));
+
+  // Usado como último recurso para "adivinhar" o tipo de pagamentos de Pix que
+  // não mencionam VT/Auxílio em lugar nenhum (nem no texto, nem no nome do
+  // arquivo) — ver lib/valorHeuristica.ts.
+  const pagamentosExistentes = await getPagamentos();
+  const mapaValorTipo = construirMapaValorTipo(pagamentosExistentes);
 
   const novosDocumentos: Documento[] = [];
   const novosPagamentos: Pagamento[] = [];
@@ -71,8 +78,13 @@ export async function POST(req: NextRequest) {
       }
 
       if (textoCompleto && pareceRelatorioDeLote(textoCompleto)) {
-        const { periodo, linhas } = parseRelatorioDeLote(textoCompleto);
+        const { periodo, linhas } = parseRelatorioDeLote(textoCompleto, file.name);
         if (linhas.length > 0) {
+          for (const l of linhas) {
+            if (l.tipo === "NAO_IDENTIFICADO") {
+              l.tipo = sugerirTipoPorValor(l.valor, mapaValorTipo) || "NAO_IDENTIFICADO";
+            }
+          }
           const pagamentos = linhasParaPagamentos(linhas, periodo, file.name, "upload_lote_bancario");
           novosPagamentos.push(...pagamentos);
           const vinculados = linhas.filter((l) => porNome.has(l.nomeNorm) || (l.cpf && funcionarios.some((f) => f.cpf === l.cpf))).length;
@@ -88,8 +100,13 @@ export async function POST(req: NextRequest) {
       }
 
       if (textoCompleto && pareceLotePix(textoCompleto)) {
-        const linhas = parseLotePix(textoCompleto);
+        const linhas = parseLotePix(textoCompleto, file.name);
         if (linhas.length > 0) {
+          for (const l of linhas) {
+            if (l.tipo === "NAO_IDENTIFICADO") {
+              l.tipo = sugerirTipoPorValor(l.valor, mapaValorTipo) || "NAO_IDENTIFICADO";
+            }
+          }
           const pagamentos = linhasParaPagamentos(linhas, null, file.name, "upload_pix_lote");
           novosPagamentos.push(...pagamentos);
           const vinculados = linhas.filter((l) => porNome.has(l.nomeNorm) || (l.cpf && funcionarios.some((f) => f.cpf === l.cpf))).length;

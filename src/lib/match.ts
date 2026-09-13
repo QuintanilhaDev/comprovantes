@@ -1,20 +1,5 @@
-import Fuse from "fuse.js";
 import type { Funcionario } from "./types";
-
-let fuseCache: { fuse: Fuse<Funcionario>; n: number } | null = null;
-
-function getFuse(funcionarios: Funcionario[]): Fuse<Funcionario> {
-  if (fuseCache && fuseCache.n === funcionarios.length) return fuseCache.fuse;
-  const fuse = new Fuse(funcionarios, {
-    keys: ["nomeNorm"],
-    threshold: 0.32,
-    ignoreLocation: true,
-    minMatchCharLength: 3,
-    includeScore: true,
-  });
-  fuseCache = { fuse, n: funcionarios.length };
-  return fuse;
-}
+import { compararNomes } from "./nameMatch";
 
 /**
  * Verifica se `curto` pode ser uma versão abreviada/truncada de `completo`.
@@ -100,9 +85,19 @@ export function matchFuncionario(
     }
   }
 
-  const fuse = getFuse(funcionarios);
-  const res = fuse.search(nomeNorm, { limit: 1 });
-  if (res.length > 0 && (res[0].score ?? 1) < 0.28) return res[0].item;
+  // Já não achou por abreviação — tenta por similaridade de palavras (mesmo
+  // grupo de "primeira palavra" já usado acima; se não achou nada lá, tenta a
+  // lista inteira como último recurso).
+  let melhorCandidato: Funcionario | null = null;
+  let melhorSimilaridade = 0;
+  for (const f of candidatos.length > 0 ? candidatos : funcionarios) {
+    const sim = compararNomes(nomeNorm, f.nomeNorm);
+    if (sim > melhorSimilaridade) {
+      melhorSimilaridade = sim;
+      melhorCandidato = f;
+    }
+  }
+  if (melhorCandidato && melhorSimilaridade >= 0.75) return melhorCandidato;
 
   return null;
 }

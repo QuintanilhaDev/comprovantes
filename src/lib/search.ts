@@ -1,33 +1,15 @@
-import Fuse from "fuse.js";
 import type { Funcionario } from "./types";
 import { looksLikeCpf, normalizeName, onlyDigits } from "./normalize";
-
-let fuseInstance: Fuse<Funcionario> | null = null;
-let fuseIndexedCount = 0;
-
-function getFuse(funcionarios: Funcionario[]): Fuse<Funcionario> {
-  if (fuseInstance && fuseIndexedCount === funcionarios.length) return fuseInstance;
-  fuseInstance = new Fuse(funcionarios, {
-    keys: [
-      { name: "nomeNorm", weight: 1 },
-      { name: "nome", weight: 0.6 },
-    ],
-    threshold: 0.36, // permite pequenos erros de digitação
-    distance: 100,
-    ignoreLocation: true,
-    minMatchCharLength: 2,
-    includeScore: true,
-  });
-  fuseIndexedCount = funcionarios.length;
-  return fuseInstance;
-}
+import { compararNomes } from "./nameMatch";
 
 export interface RankedFuncionario {
   funcionario: Funcionario;
-  score: number; // 0 = melhor
+  score: number; // 0 = melhor (mantém a mesma convenção usada no resto do código)
 }
 
-/** Busca inteligente: detecta se a query parece CPF e busca por dígitos; senão, busca fuzzy por nome. */
+const LIMIAR_MINIMO = 0.55;
+
+/** Busca inteligente: detecta se a query parece CPF e busca por dígitos; senão, busca por nome (palavra a palavra). */
 export function searchFuncionarios(query: string, funcionarios: Funcionario[], limit = 25): RankedFuncionario[] {
   const trimmed = query.trim();
   if (!trimmed) return [];
@@ -46,7 +28,16 @@ export function searchFuncionarios(query: string, funcionarios: Funcionario[], l
   }
 
   const normQuery = normalizeName(trimmed);
-  const fuse = getFuse(funcionarios);
-  const results = fuse.search(normQuery || trimmed, { limit });
-  return results.map((r) => ({ funcionario: r.item, score: r.score ?? 1 }));
+  if (!normQuery) return [];
+
+  const ranked: RankedFuncionario[] = [];
+  for (const f of funcionarios) {
+    const similaridade = compararNomes(normQuery, f.nomeNorm);
+    if (similaridade >= LIMIAR_MINIMO) {
+      ranked.push({ funcionario: f, score: 1 - similaridade });
+    }
+  }
+
+  ranked.sort((a, b) => a.score - b.score || a.funcionario.nome.localeCompare(b.funcionario.nome));
+  return ranked.slice(0, limit);
 }

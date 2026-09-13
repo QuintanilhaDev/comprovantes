@@ -86,7 +86,7 @@ function mesclarCampos(antigo: Funcionario, novo: Funcionario): { mesclado: Func
   function campoComFormato(valorAntigo: unknown, valorNovo: unknown, valido: (v: unknown) => boolean) {
     if (valorNovo === null || valorNovo === undefined || String(valorNovo).trim() === "") return valorAntigo;
     if (!valido(valorNovo)) return valorAntigo; // formato inesperado — não arrisca, mantém o antigo
-    if (valorNovo !== valorAntigo) mudou = true;
+    if (!valoresEquivalentes(valorAntigo, valorNovo)) mudou = true;
     return valorNovo;
   }
 
@@ -98,7 +98,7 @@ function mesclarCampos(antigo: Funcionario, novo: Funcionario): { mesclado: Func
     nome: (campoTexto(antigo.nome, novo.nome) as string) || antigo.nome,
     nomeNorm: (campoTexto(antigo.nomeNorm, novo.nomeNorm) as string) || antigo.nomeNorm,
     cpfFormatado: antigo.cpfFormatado || novo.cpfFormatado,
-    polo: campoTexto(antigo.polo, novo.polo) as string | number | null,
+    polo: campoComFormato(antigo.polo, novo.polo, pareceRotuloDescritivo) as string | number | null,
     zonaEleitoral: campoTexto(antigo.zonaEleitoral, novo.zonaEleitoral) as string | number | null,
     municipioZona: campoTexto(antigo.municipioZona, novo.municipioZona) as string | null,
     municipioPolo: campoTexto(antigo.municipioPolo, novo.municipioPolo) as string | null,
@@ -122,6 +122,23 @@ function mesclarCampos(antigo: Funcionario, novo: Funcionario): { mesclado: Func
 
 function pareceDataIso(v: unknown): boolean {
   return typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v);
+}
+
+/** Um rótulo de polo de verdade tem letras (ex: "P24 VITORIA DA CONQUISTA") — um
+ * número solto (fallback usado quando a coluna "ABA DE ORIGEM" não existe na
+ * planilha enviada) é uma informação pior, então não deve substituir um rótulo
+ * descritivo que já existia. */
+function pareceRotuloDescritivo(v: unknown): boolean {
+  return typeof v === "string" && /[A-Za-zÀ-ÿ]/.test(v);
+}
+
+/** Compara dois valores considerando datas ISO equivalentes mesmo com formatos ligeiramente diferentes (ex: "2026-08-19" vs "2026-08-19T00:00:00"). */
+function valoresEquivalentes(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a === "string" && typeof b === "string" && pareceDataIso(a) && pareceDataIso(b)) {
+    return a.slice(0, 10) === b.slice(0, 10);
+  }
+  return false;
 }
 
 function pareceCodigoBanco(v: unknown): boolean {

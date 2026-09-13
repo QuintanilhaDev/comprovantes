@@ -3,6 +3,7 @@ import type { Documento, Funcionario, Pagamento } from "./types";
 import { normalizeCpf, normalizeName } from "./normalize";
 import { buildFuncionarioIndexes, matchFuncionario } from "./match";
 import { employeeId } from "./employeeId";
+import { construirMapaValorTipo, sugerirTipoPorValor } from "./valorHeuristica";
 
 export type PagamentoResolvido = Pagamento & { funcionarioResolvidoId: string | null };
 export type DocumentoResolvido = Documento & { funcionarioResolvidoId: string | null };
@@ -66,7 +67,18 @@ async function carregarResolvidos(): Promise<void> {
 
     const pagBaseline = await readJsonLocal<Pagamento[]>("pagamentos.json", []);
     const pagExtra = await readMutableJson<Pagamento[]>("pagamentos_extra", []);
-    const pagamentos = [...pagBaseline, ...pagExtra];
+    const pagamentosBrutos = [...pagBaseline, ...pagExtra];
+
+    // Alguns pagamentos (principalmente comprovantes de Pix antigos) não tinham
+    // como informar o tipo diretamente no texto. Preenche esses casos usando o
+    // histórico de valores já confiáveis (ex: R$66,00 é quase sempre Auxílio) —
+    // só quando há uma amostra boa e um tipo claramente dominante.
+    const mapaValorTipo = construirMapaValorTipo(pagamentosBrutos);
+    const pagamentos = pagamentosBrutos.map((p) => {
+      if (p.tipo !== "NAO_IDENTIFICADO") return p;
+      const sugestao = sugerirTipoPorValor(p.valor, mapaValorTipo);
+      return sugestao ? { ...p, tipo: sugestao } : p;
+    });
 
     const docBaseline = await readJsonLocal<Documento[]>("documentos.json", []);
     const docExtra = await readMutableJson<Documento[]>("documentos_extra", []);
