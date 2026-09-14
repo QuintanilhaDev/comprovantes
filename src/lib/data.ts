@@ -91,10 +91,12 @@ async function carregarResolvidos(): Promise<void> {
       return ajuste ? { ...d, ...ajuste } : d;
     });
 
-    const pagamentosResolvidos: PagamentoResolvido[] = pagamentos.map((p) => {
-      const f = matchFuncionario(p.nomeNorm, p.cpf, funcionarios, cpfIndex, nomeIndex, porPrimeiraPalavra);
-      return { ...p, funcionarioResolvidoId: f ? employeeId(f) : null };
-    });
+    const pagamentosResolvidos: PagamentoResolvido[] = deduplicarPagamentos(
+      pagamentos.map((p) => {
+        const f = matchFuncionario(p.nomeNorm, p.cpf, funcionarios, cpfIndex, nomeIndex, porPrimeiraPalavra);
+        return { ...p, funcionarioResolvidoId: f ? employeeId(f) : null };
+      })
+    );
 
     const documentosResolvidos: DocumentoResolvido[] = documentosBrutos.map((d) => {
       const f = matchFuncionario(d.nomeNorm, d.cpf, funcionarios, cpfIndex, nomeIndex, porPrimeiraPalavra);
@@ -235,4 +237,35 @@ function distanciaDatas(a: string | null, b: string | null): number {
   const db = Date.parse(b);
   if (Number.isNaN(da) || Number.isNaN(db)) return 9999;
   return Math.abs(da - db) / (1000 * 60 * 60 * 24);
+}
+
+/**
+ * Remove pagamentos duplicados — comum quando dois relatórios do banco enviados
+ * em momentos diferentes (ex: o relatório original de um período e depois um
+ * relatório de "Pendência" do mesmo período) acabam listando a MESMA transação.
+ *
+ * Duas passadas:
+ * 1. Remove duplicatas EXATAS: mesmo funcionário, tipo, valor e data.
+ * 2. Quando existe uma versão COM data e outra idêntica (mesmo funcionário,
+ *    tipo e valor) SEM data, remove a versão sem data — ela quase sempre é o
+ *    mesmo pagamento relatado por uma fonte menos completa, não um pagamento
+ *    a mais.
+ */
+function deduplicarPagamentos(pagamentos: PagamentoResolvido[]): PagamentoResolvido[] {
+  const chaveExata = (p: PagamentoResolvido) =>
+    `${p.funcionarioResolvidoId || p.nomeNorm}|${p.tipo}|${p.valor}|${p.data || ""}`;
+
+  const semExatas: PagamentoResolvido[] = [];
+  const vistos = new Set<string>();
+  for (const p of pagamentos) {
+    const k = chaveExata(p);
+    if (vistos.has(k)) continue;
+    vistos.add(k);
+    semExatas.push(p);
+  }
+
+  const chaveSemData = (p: PagamentoResolvido) => `${p.funcionarioResolvidoId || p.nomeNorm}|${p.tipo}|${p.valor}`;
+  const temVersaoComData = new Set(semExatas.filter((p) => p.data).map(chaveSemData));
+
+  return semExatas.filter((p) => p.data || !temVersaoComData.has(chaveSemData(p)));
 }

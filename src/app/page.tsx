@@ -41,6 +41,21 @@ export default async function HomePage() {
           tone={alertas > 0 ? "danger" : "default"}
         />
       </div>
+
+      <a
+        href="/api/exportar"
+        className="mt-6 inline-flex items-center gap-2 rounded-lg border border-onyx-border bg-onyx-soft/60 px-4 py-2 text-sm text-muted transition hover:border-orange/40 hover:text-paper"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={1.8}
+            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 8.25L12 3.75m0 0L7.5 8.25M12 3.75v12.75"
+          />
+        </svg>
+        Exportar planilha geral (Excel)
+      </a>
     </div>
   );
 }
