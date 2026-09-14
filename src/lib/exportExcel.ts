@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import type { Funcionario } from "./types";
 import type { DocumentoResolvido, PagamentoResolvido } from "./data";
-import { formatBRL, isoDateToBr } from "./normalize";
+import { formatBRL, formatCpf, isoDateToBr } from "./normalize";
 import { employeeId } from "./employeeId";
 
 const COR_MARCA = "FFFF7A1A"; // laranja da ferramenta
@@ -23,6 +23,9 @@ const TIPO_LABEL: Record<string, string> = {
   NAO_IDENTIFICADO: "Não identificado",
 };
 
+// Chave especial para agrupar pagamentos que não têm data (não entram numa coluna de data).
+const SEM_DATA_KEY = "__SEM_DATA__";
+
 function estilizarCabecalho(ws: ExcelJS.Worksheet, linha: number, ultimaColuna: number) {
   const row = ws.getRow(linha);
   row.height = 22;
@@ -30,7 +33,7 @@ function estilizarCabecalho(ws: ExcelJS.Worksheet, linha: number, ultimaColuna: 
     const cell = row.getCell(c);
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR_MARCA } };
     cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
-    cell.alignment = { vertical: "middle", horizontal: "left" };
+    cell.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
     cell.border = { bottom: { style: "thin", color: { argb: COR_MARCA } } };
   }
 }
@@ -69,7 +72,9 @@ function zebrarLinhas(ws: ExcelJS.Worksheet, primeiraLinhaDados: number, ultimaL
       }
     }
     for (let c = 1; c <= ultimaColuna; c++) {
-      ws.getCell(l, c).border = { bottom: { style: "hair", color: { argb: COR_BORDA } } };
+      const cell = ws.getCell(l, c);
+      const bordaAtual = cell.border || {};
+      cell.border = { ...bordaAtual, bottom: { style: "hair", color: { argb: COR_BORDA } } };
     }
   }
 }
@@ -80,9 +85,33 @@ function corSituacao(situacao: string): { bg: string; txt: string } {
   return { bg: COR_PENDENTE_BG, txt: COR_PENDENTE_TXT };
 }
 
+/**
+ * Alguns relatórios de banco trazem avisos de "Retorno Bancário" / notificações de
+ * pendência que não são pagamentos de fato — não têm funcionário identificado, não
+ * têm valor e caem no tipo "Não identificado". Isso polui a planilha (aparecem como
+ * se fossem uma pessoa chamada, por exemplo, "2026-09-10 - Max Serviços - BB -
+ * Retorno Bancário..."). Filtramos esses registros antes de montar a exportação.
+ */
+function isPagamentoValido(p: PagamentoResolvido): boolean {
+  const semFuncionario = !p.funcionarioResolvidoId;
+  const semValor = p.valor === null || p.valor === 0;
+  const naoIdentificado = p.tipo === "NAO_IDENTIFICADO";
+  if (semFuncionario && semValor && naoIdentificado) return false;
+  return true;
+}
+
+interface GrupoFuncionario {
+  chave: string;
+  nome: string;
+  cpf: string;
+  funcao: string;
+  municipio: string;
+  porData: Map<string, PagamentoResolvido[]>;
+}
+
 export async function gerarPlanilhaGeral(
   funcionarios: Funcionario[],
-  pagamentos: PagamentoResolvido[],
+  pagamentosBrutos: PagamentoResolvido[],
   documentos: DocumentoResolvido[]
 ): Promise<ExcelJS.Buffer> {
   const wb = new ExcelJS.Workbook();
@@ -92,61 +121,116 @@ export async function gerarPlanilhaGeral(
   const agora = new Date();
   const dataGeracao = agora.toLocaleString("pt-BR");
 
-  // ---------- Aba 1: Pagamentos (uma linha por pagamento, com os dados do funcionário) ----------
-  const wsPag = wb.addWorksheet("Pagamentos", { views: [{ state: "frozen", ySplit: 4 }] });
-  const colunasPag = [
-    { header: "Funcionário", key: "nome", width: 34 },
-    { header: "CPF", key: "cpf", width: 16 },
-    { header: "Função", key: "funcao", width: 26 },
-    { header: "Município (Polo)", key: "municipio", width: 22 },
-    { header: "Tipo", key: "tipo", width: 16 },
-    { header: "Data", key: "data", width: 12 },
-    { header: "Valor (R$)", key: "valor", width: 13 },
-    { header: "Situação", key: "situacao", width: 13 },
-    { header: "Período/Folha", key: "periodo", width: 26 },
-    { header: "Fonte", key: "fonte", width: 34 },
+  const funcionarioPorId = new Map(funcionarios.map((f) => [employeeId(f), f]));
+  const pagamentos = pagamentosBrutos.filter(isPagamentoValido);
+
+  // ---------- Aba 1: Pagamentos (uma linha por funcionário, uma coluna por data) ----------
+  const wsPag = wb.addWorksheet("Pagamentos");
+
+  // Agrupa os pagamentos por funcionário (ou, na falta de um match, pelo nome normalizado
+  // que veio no comprovante) e, dentro de cada um, por data.
+  const grupos = new Map<string, GrupoFuncionario>();
+  let temSemData = false;
+  const todasDatas = new Set<string>();
+
+  for (const p of pagamentos) {
+    const f = p.funcionarioResolvidoId ? funcionarioPorId.get(p.funcionarioResolvidoId) : undefined;
+    const chave = p.funcionarioResolvidoId || `nome:${p.nomeNorm}`;
+
+    let grupo = grupos.get(chave);
+    if (!grupo) {
+      grupo = {
+        chave,
+        nome: f?.nome || p.nome,
+        cpf: f?.cpfFormatado || (p.cpf ? formatCpf(p.cpf) : ""),
+        funcao: f?.funcao || "",
+        municipio: f?.municipioPolo || "",
+        porData: new Map(),
+      };
+      grupos.set(chave, grupo);
+    }
+
+    const chaveData = p.data || SEM_DATA_KEY;
+    if (chaveData === SEM_DATA_KEY) temSemData = true;
+    else todasDatas.add(chaveData);
+
+    const lista = grupo.porData.get(chaveData) || [];
+    lista.push(p);
+    grupo.porData.set(chaveData, lista);
+  }
+
+  const datasOrdenadas = [...todasDatas].sort();
+
+  const colunasFixas = [
+    { header: "Funcionário", width: 34 },
+    { header: "CPF", width: 16 },
+    { header: "Função", width: 26 },
+    { header: "Município (Polo)", width: 20 },
   ];
-  adicionarFaixaDeTitulo(wsPag, "Comprovantes TRE — Pagamentos", `Gerado em ${dataGeracao}`, colunasPag.length);
-  wsPag.getRow(4).values = colunasPag.map((c) => c.header);
-  colunasPag.forEach((c, i) => {
+  const colunasData = datasOrdenadas.map((d) => ({ header: isoDateToBr(d), width: 16, chaveData: d }));
+  if (temSemData) colunasData.push({ header: "Sem data", width: 16, chaveData: SEM_DATA_KEY });
+  const colunaTotal = { header: "Total Pago", width: 14 };
+
+  const totalColunas = colunasFixas.length + colunasData.length + 1;
+
+  adicionarFaixaDeTitulo(wsPag, "Comprovantes TRE — Pagamentos por Funcionário", `Gerado em ${dataGeracao}`, totalColunas);
+
+  const cabecalho = [...colunasFixas.map((c) => c.header), ...colunasData.map((c) => c.header), colunaTotal.header];
+  wsPag.getRow(4).values = cabecalho;
+  [...colunasFixas, ...colunasData, colunaTotal].forEach((c, i) => {
     wsPag.getColumn(i + 1).width = c.width;
   });
-  estilizarCabecalho(wsPag, 4, colunasPag.length);
+  wsPag.views = [{ state: "frozen", xSplit: colunasFixas.length, ySplit: 4 }];
+  estilizarCabecalho(wsPag, 4, totalColunas);
 
-  const funcionarioPorId = new Map(funcionarios.map((f) => [employeeId(f), f]));
-
-  const pagamentosOrdenados = [...pagamentos].sort((a, b) => {
-    const nomeA = a.funcionarioResolvidoId ? funcionarioPorId.get(a.funcionarioResolvidoId)?.nome || a.nome : a.nome;
-    const nomeB = b.funcionarioResolvidoId ? funcionarioPorId.get(b.funcionarioResolvidoId)?.nome || b.nome : b.nome;
-    return nomeA.localeCompare(nomeB) || (a.data || "").localeCompare(b.data || "");
-  });
+  const gruposOrdenados = [...grupos.values()].sort((a, b) => a.nome.localeCompare(b.nome));
 
   let linha = 5;
-  for (const p of pagamentosOrdenados) {
-    const f = p.funcionarioResolvidoId ? funcionarioPorId.get(p.funcionarioResolvidoId) : undefined;
+  for (const g of gruposOrdenados) {
     const row = wsPag.getRow(linha);
-    row.getCell(1).value = f?.nome || p.nome;
-    row.getCell(2).value = f?.cpfFormatado || "";
-    row.getCell(3).value = f?.funcao || "";
-    row.getCell(4).value = f?.municipioPolo || "";
-    row.getCell(5).value = TIPO_LABEL[p.tipo] || p.tipo;
-    row.getCell(6).value = p.data ? isoDateToBr(p.data) : "—";
-    row.getCell(7).value = p.valor ?? 0;
-    row.getCell(7).numFmt = '"R$" #,##0.00';
-    row.getCell(8).value = p.situacao;
-    row.getCell(9).value = p.periodo || "";
-    row.getCell(10).value = p.fonteArquivo || "";
+    row.getCell(1).value = g.nome;
+    row.getCell(2).value = g.cpf;
+    row.getCell(3).value = g.funcao;
+    row.getCell(4).value = g.municipio;
 
-    const { bg, txt } = corSituacao(p.situacao);
-    row.getCell(8).fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
-    row.getCell(8).font = { color: { argb: txt }, bold: true };
-    row.getCell(8).alignment = { horizontal: "center" };
+    let totalPago = 0;
+    let maxLinhasNaLinha = 1;
 
+    colunasData.forEach((coluna, idx) => {
+      const col = colunasFixas.length + idx + 1;
+      const cell = row.getCell(col);
+      const itens = g.porData.get(coluna.chaveData) || [];
+      if (itens.length === 0) return;
+
+      maxLinhasNaLinha = Math.max(maxLinhasNaLinha, itens.length);
+
+      cell.value = itens.map((p) => `${TIPO_LABEL[p.tipo] || p.tipo}: ${formatBRL(p.valor)}`).join("\n");
+      cell.alignment = { wrapText: true, vertical: "middle", horizontal: "left" };
+
+      const temProblema = itens.some((p) => p.situacao === "Cancelado" || p.situacao === "Rejeitado");
+      const temPendente = itens.some((p) => p.situacao === "Pendente");
+      const situacaoDominante = temProblema ? "Cancelado" : temPendente ? "Pendente" : "Pago";
+      const { bg, txt } = corSituacao(situacaoDominante);
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+      cell.font = { color: { argb: txt } };
+
+      for (const p of itens) {
+        if (p.situacao === "Pago" && p.valor) totalPago += p.valor;
+      }
+    });
+
+    const colTotal = colunasFixas.length + colunasData.length + 1;
+    row.getCell(colTotal).value = totalPago;
+    row.getCell(colTotal).numFmt = '"R$" #,##0.00';
+    row.getCell(colTotal).font = { bold: true };
+
+    row.height = Math.max(20, 14 + maxLinhasNaLinha * 13);
     linha++;
   }
+
   const ultimaLinhaPag = linha - 1;
-  zebrarLinhas(wsPag, 5, ultimaLinhaPag, colunasPag.length);
-  wsPag.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: colunasPag.length } };
+  zebrarLinhas(wsPag, 5, ultimaLinhaPag, totalColunas);
+  wsPag.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: totalColunas } };
 
   // ---------- Aba 2: Funcionários (um por linha, dados de cadastro) ----------
   const wsFunc = wb.addWorksheet("Funcionários", { views: [{ state: "frozen", ySplit: 4 }] });
