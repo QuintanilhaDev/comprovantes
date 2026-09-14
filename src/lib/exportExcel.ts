@@ -26,6 +26,18 @@ const TIPO_LABEL: Record<string, string> = {
 // Chave especial para agrupar pagamentos que não têm data (não entram numa coluna de data).
 const SEM_DATA_KEY = "__SEM_DATA__";
 
+type Alinhamento = "left" | "center" | "right";
+
+/** Especificação de uma coluna: cabeçalho, largura mínima/máxima para o auto-fit e alinhamento fixo. */
+interface ColunaSpec {
+  header: string;
+  min: number;
+  max: number;
+  align: Alinhamento;
+  /** Se true, força formato de texto (evita que apps tipo Google Sheets interpretem CPF/telefone/conta como número). */
+  textoForcado?: boolean;
+}
+
 function estilizarCabecalho(ws: ExcelJS.Worksheet, linha: number, ultimaColuna: number) {
   const row = ws.getRow(linha);
   row.height = 22;
@@ -86,6 +98,46 @@ function corSituacao(situacao: string): { bg: string; txt: string } {
 }
 
 /**
+ * Aplica, numa faixa de linhas já preenchidas, o alinhamento definido em cada
+ * ColunaSpec (sem sobrescrever wrapText/vertical de células que já tiverem
+ * alinhamento próprio, como as células de pagamento com múltiplas linhas) e
+ * ajusta a largura de cada coluna ao maior conteúdo real (cabeçalho incluído),
+ * respeitando os limites min/max — isso evita tanto texto cortado quanto
+ * colunas artificialmente largas.
+ */
+function finalizarColunas(
+  ws: ExcelJS.Worksheet,
+  specs: ColunaSpec[],
+  primeiraLinhaCabecalho: number,
+  primeiraLinhaDados: number,
+  ultimaLinhaDados: number
+) {
+  specs.forEach((spec, idx) => {
+    const col = idx + 1;
+    let maiorLinha = spec.header.length;
+
+    for (let l = primeiraLinhaDados; l <= ultimaLinhaDados; l++) {
+      const cell = ws.getCell(l, col);
+      if (spec.textoForcado) cell.numFmt = "@";
+      const alignmentAtual = cell.alignment;
+      cell.alignment = {
+        ...alignmentAtual,
+        vertical: "middle",
+        horizontal: spec.align,
+      };
+
+      const texto = cell.value == null ? "" : String(cell.value);
+      for (const linha of texto.split("\n")) {
+        maiorLinha = Math.max(maiorLinha, linha.length);
+      }
+    }
+
+    ws.getColumn(col).width = Math.min(Math.max(maiorLinha + 2, spec.min), spec.max);
+    void primeiraLinhaCabecalho;
+  });
+}
+
+/**
  * Alguns relatórios de banco trazem avisos de "Retorno Bancário" / notificações de
  * pendência que não são pagamentos de fato — não têm funcionário identificado, não
  * têm valor e caem no tipo "Não identificado". Isso polui a planilha (aparecem como
@@ -119,7 +171,10 @@ export async function gerarPlanilhaGeral(
   wb.created = new Date();
 
   const agora = new Date();
-  const dataGeracao = agora.toLocaleString("pt-BR");
+  // O servidor (Vercel/Node) roda em UTC — sem especificar o fuso, o horário exibido
+  // ficava 3h à frente do horário real de Salvador. "America/Bahia" cobre Salvador e
+  // não tem horário de verão, então o offset é sempre -03:00.
+  const dataGeracao = agora.toLocaleString("pt-BR", { timeZone: "America/Bahia" });
 
   const funcionarioPorId = new Map(funcionarios.map((f) => [employeeId(f), f]));
   const pagamentos = pagamentosBrutos.filter(isPagamentoValido);
@@ -161,26 +216,31 @@ export async function gerarPlanilhaGeral(
 
   const datasOrdenadas = [...todasDatas].sort();
 
-  const colunasFixas = [
-    { header: "Funcionário", width: 34 },
-    { header: "CPF", width: 16 },
-    { header: "Função", width: 26 },
-    { header: "Município (Polo)", width: 20 },
+  const specsFixas: ColunaSpec[] = [
+    { header: "Funcionário", min: 24, max: 40, align: "left" },
+    { header: "CPF", min: 14, max: 16, align: "center", textoForcado: true },
+    { header: "Função", min: 20, max: 42, align: "left" },
+    { header: "Município (Polo)", min: 16, max: 26, align: "left" },
   ];
-  const colunasData = datasOrdenadas.map((d) => ({ header: isoDateToBr(d), width: 16, chaveData: d }));
-  if (temSemData) colunasData.push({ header: "Sem data", width: 16, chaveData: SEM_DATA_KEY });
-  const colunaTotal = { header: "Total Pago", width: 14 };
+  const specsData: (ColunaSpec & { chaveData: string })[] = datasOrdenadas.map((d) => ({
+    header: isoDateToBr(d),
+    min: 12,
+    max: 30,
+    align: "left" as const,
+    chaveData: d,
+  }));
+  if (temSemData) {
+    specsData.push({ header: "Sem data", min: 12, max: 30, align: "left", chaveData: SEM_DATA_KEY });
+  }
+  const specTotal: ColunaSpec = { header: "Total Pago", min: 13, max: 18, align: "right" };
 
-  const totalColunas = colunasFixas.length + colunasData.length + 1;
+  const specsPag: ColunaSpec[] = [...specsFixas, ...specsData, specTotal];
+  const totalColunas = specsPag.length;
 
   adicionarFaixaDeTitulo(wsPag, "Comprovantes TRE — Pagamentos por Funcionário", `Gerado em ${dataGeracao}`, totalColunas);
 
-  const cabecalho = [...colunasFixas.map((c) => c.header), ...colunasData.map((c) => c.header), colunaTotal.header];
-  wsPag.getRow(4).values = cabecalho;
-  [...colunasFixas, ...colunasData, colunaTotal].forEach((c, i) => {
-    wsPag.getColumn(i + 1).width = c.width;
-  });
-  wsPag.views = [{ state: "frozen", xSplit: colunasFixas.length, ySplit: 4 }];
+  wsPag.getRow(4).values = specsPag.map((c) => c.header);
+  wsPag.views = [{ state: "frozen", xSplit: specsFixas.length, ySplit: 4 }];
   estilizarCabecalho(wsPag, 4, totalColunas);
 
   const gruposOrdenados = [...grupos.values()].sort((a, b) => a.nome.localeCompare(b.nome));
@@ -196,10 +256,10 @@ export async function gerarPlanilhaGeral(
     let totalPago = 0;
     let maxLinhasNaLinha = 1;
 
-    colunasData.forEach((coluna, idx) => {
-      const col = colunasFixas.length + idx + 1;
+    specsData.forEach((spec, idx) => {
+      const col = specsFixas.length + idx + 1;
       const cell = row.getCell(col);
-      const itens = g.porData.get(coluna.chaveData) || [];
+      const itens = g.porData.get(spec.chaveData) || [];
       if (itens.length === 0) return;
 
       maxLinhasNaLinha = Math.max(maxLinhasNaLinha, itens.length);
@@ -219,7 +279,7 @@ export async function gerarPlanilhaGeral(
       }
     });
 
-    const colTotal = colunasFixas.length + colunasData.length + 1;
+    const colTotal = specsFixas.length + specsData.length + 1;
     row.getCell(colTotal).value = totalPago;
     row.getCell(colTotal).numFmt = '"R$" #,##0.00';
     row.getCell(colTotal).font = { bold: true };
@@ -229,34 +289,35 @@ export async function gerarPlanilhaGeral(
   }
 
   const ultimaLinhaPag = linha - 1;
+  // Para as colunas de data (multi-linha), preservamos o alinhamento que já foi
+  // aplicado célula a célula acima — por isso elas entram como "left" no spec,
+  // igual ao que já está lá, e o finalizarColunas só recalcula a largura.
+  finalizarColunas(wsPag, specsPag, 4, 5, ultimaLinhaPag);
   zebrarLinhas(wsPag, 5, ultimaLinhaPag, totalColunas);
   wsPag.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: totalColunas } };
 
   // ---------- Aba 2: Funcionários (um por linha, dados de cadastro) ----------
   const wsFunc = wb.addWorksheet("Funcionários", { views: [{ state: "frozen", ySplit: 4 }] });
-  const colunasFunc = [
-    { header: "Nome", width: 34 },
-    { header: "CPF", width: 16 },
-    { header: "Status", width: 12 },
-    { header: "Função", width: 26 },
-    { header: "Vínculo", width: 12 },
-    { header: "Município (Polo)", width: 22 },
-    { header: "Admissão", width: 12 },
-    { header: "Optante VT", width: 12 },
-    { header: "Banco", width: 10 },
-    { header: "Agência", width: 10 },
-    { header: "Conta", width: 12 },
-    { header: "Telefone", width: 16 },
-    { header: "Total Comprovantes", width: 16 },
-    { header: "Total Pagamentos", width: 15 },
-    { header: "Alertas", width: 10 },
+  const specsFunc: ColunaSpec[] = [
+    { header: "Nome", min: 24, max: 40, align: "left" },
+    { header: "CPF", min: 14, max: 16, align: "center", textoForcado: true },
+    { header: "Status", min: 10, max: 14, align: "center" },
+    { header: "Função", min: 20, max: 42, align: "left" },
+    { header: "Vínculo", min: 10, max: 14, align: "center" },
+    { header: "Município (Polo)", min: 16, max: 26, align: "left" },
+    { header: "Admissão", min: 11, max: 13, align: "center" },
+    { header: "Optante VT", min: 11, max: 13, align: "center" },
+    { header: "Banco", min: 8, max: 10, align: "center", textoForcado: true },
+    { header: "Agência", min: 9, max: 12, align: "center", textoForcado: true },
+    { header: "Conta", min: 10, max: 14, align: "center", textoForcado: true },
+    { header: "Telefone", min: 13, max: 17, align: "center", textoForcado: true },
+    { header: "Total Comprovantes", min: 12, max: 20, align: "center" },
+    { header: "Total Pagamentos", min: 12, max: 18, align: "center" },
+    { header: "Alertas", min: 9, max: 10, align: "center" },
   ];
-  adicionarFaixaDeTitulo(wsFunc, "Comprovantes TRE — Funcionários", `Gerado em ${dataGeracao}`, colunasFunc.length);
-  wsFunc.getRow(4).values = colunasFunc.map((c) => c.header);
-  colunasFunc.forEach((c, i) => {
-    wsFunc.getColumn(i + 1).width = c.width;
-  });
-  estilizarCabecalho(wsFunc, 4, colunasFunc.length);
+  adicionarFaixaDeTitulo(wsFunc, "Comprovantes TRE — Funcionários", `Gerado em ${dataGeracao}`, specsFunc.length);
+  wsFunc.getRow(4).values = specsFunc.map((c) => c.header);
+  estilizarCabecalho(wsFunc, 4, specsFunc.length);
 
   const pagamentosPorFuncionario = new Map<string, PagamentoResolvido[]>();
   for (const p of pagamentos) {
@@ -302,7 +363,6 @@ export async function gerarPlanilhaGeral(
     if (alertas > 0) {
       row.getCell(15).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR_PROBLEMA_BG } };
       row.getCell(15).font = { color: { argb: COR_PROBLEMA_TXT }, bold: true };
-      row.getCell(15).alignment = { horizontal: "center" };
     }
     if (f.status && f.status !== "ATIVO") {
       row.getCell(3).font = { color: { argb: "FF8A8A93" }, italic: true };
@@ -311,8 +371,9 @@ export async function gerarPlanilhaGeral(
     linha++;
   }
   const ultimaLinhaFunc = linha - 1;
-  zebrarLinhas(wsFunc, 5, ultimaLinhaFunc, colunasFunc.length);
-  wsFunc.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: colunasFunc.length } };
+  finalizarColunas(wsFunc, specsFunc, 4, 5, ultimaLinhaFunc);
+  zebrarLinhas(wsFunc, 5, ultimaLinhaFunc, specsFunc.length);
+  wsFunc.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: specsFunc.length } };
 
   // ---------- Aba 3: Resumo ----------
   const wsResumo = wb.addWorksheet("Resumo");
