@@ -90,8 +90,12 @@ export default async function FuncionarioPage({ params }: { params: Promise<{ id
               value={funcionario.optanteVT === null || funcionario.optanteVT === undefined ? "Não informado" : funcionario.optanteVT ? "Sim" : "Não"}
             />
             <Field
-              label="Banco"
-              value={funcionario.banco ? `${funcionario.banco} · ag. ${funcionario.agencia || "—"}` : null}
+                label="Banco"
+                value={
+                  funcionario.banco
+                    ? `${funcionario.banco} · ag. ${funcionario.agencia || "—"} · cc ${funcionario.conta || "—"}`
+                    : null
+                  }
             />
             <Field label="Telefone" value={funcionario.telefone} />
             <Field label="Zona/Município" value={funcionario.municipioZona} />
