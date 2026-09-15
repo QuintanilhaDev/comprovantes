@@ -27,6 +27,14 @@ const ROW_RE =
 const PIX_BLOCK_RE =
   /Comprovante Pix( Rejeitado)?[\s\S]*?VALOR:\s*R\$\s*([\d.]+,\d{2})[\s\S]*?(?:MOTIVO\s+([^\n]+))?[\s\S]*?DATA:\s*(\d{2}\/\d{2}\/\d{4})[\s\S]*?PAGO PARA:\s*([^\n]+)\nCPF:\s*([^\n]+)/g;
 
+// Formato "Relatório de Pagamentos Realizados" do Banco do Brasil (categoria nova
+// que a empresa passou a usar): uma linha por transação, com data e valor, mas
+// sem dizer o tipo (VT/Auxílio). Ex. de uma linha (sem espaços entre os campos,
+// como o extrator de texto entrega): "314/09/2026EDUARDO PASSOS DOS SANTOSR$
+// 59,00" seguido por "CPF: 080.752.425-56PixTransferência(Online)".
+const RELATORIO_PAGAMENTOS_RE =
+  /(\d+)(\d{2}\/\d{2}\/\d{4})([A-Za-zÀ-ÿ\s]{3,60}?)R\$\s*([\d.]+,\d{2})\nCPF:\s*([\d.\-]+)/g;
+
 function tipoDoTexto(raw: string | undefined | null): TipoBeneficio {
   if (!raw) return "NAO_IDENTIFICADO";
   if (/ux/i.test(raw)) return "AUXILIO";
@@ -140,8 +148,44 @@ export function parseLotePix(texto: string, filename: string): LinhaLote[] {
   return linhas;
 }
 
-export function linhasParaPagamentos(
-  linhas: LinhaLote[],
+/**
+ * Reconhece o "Relatório de Pagamentos Realizados" (formato novo do Banco do
+ * Brasil): uma linha numerada por transação, com data, nome, valor e CPF —
+ * mas sem informar o tipo (VT/Auxílio), então isso depende do nome do arquivo
+ * ou da heurística por valor (ver lib/valorHeuristica.ts).
+ */
+export function pareceRelatorioPagamentosRealizados(texto: string): boolean {
+  if (/Relat[oó]rio de Pagamentos Realizados/i.test(texto)) return true;
+  const matches = texto.match(RELATORIO_PAGAMENTOS_RE);
+  return !!matches && matches.length >= 3;
+}
+
+export function parseRelatorioPagamentosRealizados(texto: string, filename: string): RelatorioLoteParseado {
+  const tipoPeloArquivo = tipoSugeridoPeloNomeArquivo(filename) || "NAO_IDENTIFICADO";
+
+  const periodoMatch = /Per[ií]odo:\s*(\d{2}\/\d{2}\/\d{4})\s*a\s*(\d{2}\/\d{2}\/\d{4})/i.exec(texto);
+  const periodo = periodoMatch ? `${periodoMatch[1]} a ${periodoMatch[2]}` : null;
+
+  const linhas: LinhaLote[] = [];
+  RELATORIO_PAGAMENTOS_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = RELATORIO_PAGAMENTOS_RE.exec(texto)) !== null) {
+    const nome = m[3].trim();
+    linhas.push({
+      nome,
+      nomeNorm: normalizeName(nome),
+      cpf: normalizeCpf(m[5]),
+      tipo: tipoPeloArquivo,
+      situacao: "Pago",
+      valor: parseBrValor(m[4]),
+      data: brDateToIso(m[2]),
+    });
+  }
+
+  return { periodo, linhas };
+}
+
+export function linhasParaPagamentos(  linhas: LinhaLote[],
   periodo: string | null,
   fonteArquivo: string,
   origem: Pagamento["origem"]

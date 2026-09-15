@@ -5,8 +5,10 @@ import {
   linhasParaPagamentos,
   pareceLotePix,
   pareceRelatorioDeLote,
+  pareceRelatorioPagamentosRealizados,
   parseLotePix,
   parseRelatorioDeLote,
+  parseRelatorioPagamentosRealizados,
 } from "@/lib/batchExtract";
 import { construirMapaValorTipo, sugerirTipoPorValor } from "@/lib/valorHeuristica";
 import { saveUploadedFile } from "@/lib/storage";
@@ -77,52 +79,97 @@ export async function POST(req: NextRequest) {
         textoCompleto = "";
       }
 
+      if (textoCompleto && pareceRelatorioPagamentosRealizados(textoCompleto)) {
+        const { periodo, linhas } = parseRelatorioPagamentosRealizados(textoCompleto, file.name);
+        for (const l of linhas) {
+          if (l.tipo === "NAO_IDENTIFICADO") {
+            l.tipo = sugerirTipoPorValor(l.valor, mapaValorTipo) || "NAO_IDENTIFICADO";
+          }
+        }
+        const pagamentos = linhasParaPagamentos(linhas, periodo, file.name, "upload_lote_bancario");
+        novosPagamentos.push(...pagamentos);
+        const vinculados = linhas.filter((l) => porNome.has(l.nomeNorm) || (l.cpf && funcionarios.some((f) => f.cpf === l.cpf))).length;
+        resultados.push({
+          arquivo: file.name,
+          status: "ok",
+          ehRelatorioEmLote: true,
+          linhasEncontradas: linhas.length,
+          linhasVinculadas: vinculados,
+          detalhe: linhas.length === 0 ? "Relatório reconhecido, mas nenhuma linha de pagamento foi lida dele." : undefined,
+        });
+        continue;
+      }
+
       if (textoCompleto && pareceRelatorioDeLote(textoCompleto)) {
         const { periodo, linhas } = parseRelatorioDeLote(textoCompleto, file.name);
-        if (linhas.length > 0) {
-          for (const l of linhas) {
-            if (l.tipo === "NAO_IDENTIFICADO") {
-              l.tipo = sugerirTipoPorValor(l.valor, mapaValorTipo) || "NAO_IDENTIFICADO";
-            }
+        for (const l of linhas) {
+          if (l.tipo === "NAO_IDENTIFICADO") {
+            l.tipo = sugerirTipoPorValor(l.valor, mapaValorTipo) || "NAO_IDENTIFICADO";
           }
-          const pagamentos = linhasParaPagamentos(linhas, periodo, file.name, "upload_lote_bancario");
-          novosPagamentos.push(...pagamentos);
-          const vinculados = linhas.filter((l) => porNome.has(l.nomeNorm) || (l.cpf && funcionarios.some((f) => f.cpf === l.cpf))).length;
-          resultados.push({
-            arquivo: file.name,
-            status: "ok",
-            ehRelatorioEmLote: true,
-            linhasEncontradas: linhas.length,
-            linhasVinculadas: vinculados,
-          });
-          continue;
         }
+        const pagamentos = linhasParaPagamentos(linhas, periodo, file.name, "upload_lote_bancario");
+        novosPagamentos.push(...pagamentos);
+        const vinculados = linhas.filter((l) => porNome.has(l.nomeNorm) || (l.cpf && funcionarios.some((f) => f.cpf === l.cpf))).length;
+        resultados.push({
+          arquivo: file.name,
+          status: "ok",
+          ehRelatorioEmLote: true,
+          linhasEncontradas: linhas.length,
+          linhasVinculadas: vinculados,
+          detalhe: linhas.length === 0 ? "Relatório em lote reconhecido, mas sem nenhum pagamento nele (pode ser uma lista de pendências já vazia)." : undefined,
+        });
+        continue;
       }
 
       if (textoCompleto && pareceLotePix(textoCompleto)) {
         const linhas = parseLotePix(textoCompleto, file.name);
-        if (linhas.length > 0) {
-          for (const l of linhas) {
-            if (l.tipo === "NAO_IDENTIFICADO") {
-              l.tipo = sugerirTipoPorValor(l.valor, mapaValorTipo) || "NAO_IDENTIFICADO";
-            }
+        for (const l of linhas) {
+          if (l.tipo === "NAO_IDENTIFICADO") {
+            l.tipo = sugerirTipoPorValor(l.valor, mapaValorTipo) || "NAO_IDENTIFICADO";
           }
-          const pagamentos = linhasParaPagamentos(linhas, null, file.name, "upload_pix_lote");
-          novosPagamentos.push(...pagamentos);
-          const vinculados = linhas.filter((l) => porNome.has(l.nomeNorm) || (l.cpf && funcionarios.some((f) => f.cpf === l.cpf))).length;
-          resultados.push({
-            arquivo: file.name,
-            status: "ok",
-            ehRelatorioEmLote: true,
-            linhasEncontradas: linhas.length,
-            linhasVinculadas: vinculados,
-          });
-          continue;
         }
+        const pagamentos = linhasParaPagamentos(linhas, null, file.name, "upload_pix_lote");
+        novosPagamentos.push(...pagamentos);
+        const vinculados = linhas.filter((l) => porNome.has(l.nomeNorm) || (l.cpf && funcionarios.some((f) => f.cpf === l.cpf))).length;
+        resultados.push({
+          arquivo: file.name,
+          status: "ok",
+          ehRelatorioEmLote: true,
+          linhasEncontradas: linhas.length,
+          linhasVinculadas: vinculados,
+          detalhe: linhas.length === 0 ? "Lote de Pix reconhecido, mas nenhuma transação foi lida dele." : undefined,
+        });
+        continue;
+      }
+
+      // Segurança extra: um arquivo cujo nome parece claramente um relatório do
+      // banco (contém "Retorno Bancário", "Max Serviços", etc.) nunca deve virar
+      // um "comprovante individual" mesmo que não tenhamos reconhecido o formato
+      // do texto — isso evitava criar um pagamento fantasma com o nome do
+      // arquivo no lugar do nome de uma pessoa.
+      if (/retorno banc[aá]rio|max servi[cç]os|relat[oó]rio.{0,20}pagamento/i.test(file.name)) {
+        resultados.push({
+          arquivo: file.name,
+          status: "erro",
+          detalhe: "Este arquivo parece um relatório do banco, mas não conseguimos reconhecer o formato interno dele. Nenhum dado foi importado — me envie este arquivo para eu ajustar o leitor.",
+        });
+        continue;
       }
 
       // Não é um relatório em lote — trata como comprovante individual de uma pessoa.
       const parsed = await parseReceiptPdf(file.name, bytes, tipoManual);
+
+      if (!parsed.valorDetectado && !parsed.cpfDetectado && parsed.nomeDetectado === file.name.replace(/\.pdf$/i, "")) {
+        // Não conseguimos identificar nome, CPF nem valor — bem provável que não
+        // seja um comprovante de pagamento de verdade (ou tenha um formato que
+        // ainda não reconhecemos). Melhor avisar do que inventar um registro.
+        resultados.push({
+          arquivo: file.name,
+          status: "erro",
+          detalhe: "Não conseguimos identificar um pagamento válido neste PDF (nem nome, nem CPF, nem valor). Nada foi importado.",
+        });
+        continue;
+      }
 
       const relPath = `uploads/${Date.now()}-${file.name.replace(/[^\w.\-]+/g, "_")}`;
       await saveUploadedFile(relPath, bytes, "application/pdf");
