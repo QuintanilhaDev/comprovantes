@@ -152,6 +152,34 @@ function isPagamentoValido(p: PagamentoResolvido): boolean {
   return true;
 }
 
+/**
+ * Alguns pagamentos (principalmente PIX individuais extraídos de um PDF de
+ * "retorno bancário") não têm o campo `data` preenchido, mas o nome do arquivo
+ * de origem quase sempre começa com a data no formato AAAA-MM-DD (ex:
+ * "2026-08-27 - Max Serviços - BB - Retorno Bancário..."). Usado só para
+ * PREENCHER a coluna de data na aba de pendências — nunca exibimos o nome do
+ * arquivo em si, e isso não afeta o filtro por mês (que continua olhando
+ * apenas o campo `data` original, como já era).
+ */
+function dataParaExibicao(p: PagamentoResolvido): string | null {
+  if (p.data) return p.data;
+  const match = (p.fonteArquivo || "").match(/(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Um pagamento é "de pendência" quando veio de um relatório de reenvio bancário —
+ * ou seja, um pagamento que falhou na primeira tentativa e precisou ser
+ * reenviado (identificável pelo nome do período/arquivo de origem, ex: "TRE VA
+ * Pendência_Agosto26.xlsx"). Só entra na aba quando o reenvio de fato deu certo
+ * (situação "Pago") — um reenvio que falhou de novo não é uma "pendência paga".
+ */
+function isPendenciaPaga(p: PagamentoResolvido): boolean {
+  if (p.situacao !== "Pago") return false;
+  const texto = `${p.periodo || ""} ${p.fonteArquivo || ""}`.toLowerCase();
+  return texto.includes("pend");
+}
+
 interface GrupoFuncionario {
   chave: string;
   nome: string;
@@ -306,7 +334,85 @@ export async function gerarPlanilhaGeral(
   zebrarLinhas(wsPag, 5, ultimaLinhaPag, totalColunas);
   wsPag.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: totalColunas } };
 
-  // ---------- Aba 2: Funcionários (um por linha, dados de cadastro) ----------
+  // ---------- Aba 2: Pendências Pagas (reenvios bancários que deram certo) ----------
+  const wsPend = wb.addWorksheet("Pendências Pagas");
+  const specsPend: ColunaSpec[] = [
+    { header: "Funcionário", min: 24, max: 40, align: "left" },
+    { header: "CPF", min: 14, max: 16, align: "center", textoForcado: true },
+    { header: "Função", min: 20, max: 38, align: "left" },
+    { header: "Vínculo", min: 10, max: 14, align: "center" },
+    { header: "Município (Polo)", min: 16, max: 26, align: "left" },
+    { header: "Status", min: 10, max: 14, align: "center" },
+    { header: "Banco", min: 8, max: 10, align: "center", textoForcado: true },
+    { header: "Agência", min: 9, max: 12, align: "center", textoForcado: true },
+    { header: "Conta", min: 10, max: 14, align: "center", textoForcado: true },
+    { header: "Telefone", min: 13, max: 17, align: "center", textoForcado: true },
+    { header: "Data do Pagamento", min: 14, max: 16, align: "center" },
+    { header: "Tipo", min: 14, max: 20, align: "left" },
+    { header: "Valor (R$)", min: 12, max: 16, align: "right" },
+  ];
+  adicionarFaixaDeTitulo(
+    wsPend,
+    `Comprovantes TRE — Pendências Pagas (reenvios bancários)${sufixoTitulo}`,
+    `Pagamentos que falharam na primeira tentativa e precisaram ser reenviados — Gerado em ${dataGeracao}`,
+    specsPend.length
+  );
+  wsPend.getRow(4).values = specsPend.map((c) => c.header);
+  wsPend.views = [{ state: "frozen", ySplit: 4 }];
+  estilizarCabecalho(wsPend, 4, specsPend.length);
+
+  const pendencias = pagamentos
+    .filter(isPendenciaPaga)
+    .slice()
+    .sort((a, b) => {
+      const da = dataParaExibicao(a);
+      const db = dataParaExibicao(b);
+      if (da && db && da !== db) return db.localeCompare(da); // mais recente primeiro
+      if (da && !db) return -1;
+      if (!da && db) return 1;
+      return a.nome.localeCompare(b.nome);
+    });
+
+  let linhaPend = 5;
+  for (const p of pendencias) {
+    const f = p.funcionarioResolvidoId ? funcionarioPorId.get(p.funcionarioResolvidoId) : undefined;
+    const iso = dataParaExibicao(p);
+
+    const row = wsPend.getRow(linhaPend);
+    row.getCell(1).value = f?.nome || p.nome;
+    row.getCell(2).value = f?.cpfFormatado || (p.cpf ? formatCpf(p.cpf) : "—");
+    row.getCell(3).value = f?.funcao || "—";
+    row.getCell(4).value = f?.vinculo || "—";
+    row.getCell(5).value = f?.municipioPolo || "—";
+    row.getCell(6).value = f?.status || "—";
+    row.getCell(7).value = f?.banco || "—";
+    row.getCell(8).value = f?.agencia || "—";
+    row.getCell(9).value = f?.conta || "—";
+    row.getCell(10).value = f?.telefone || "—";
+    row.getCell(11).value = iso ? isoDateToBr(iso) : "—";
+    row.getCell(12).value = TIPO_LABEL[p.tipo] || p.tipo;
+    row.getCell(13).value = p.valor ?? 0;
+    row.getCell(13).numFmt = '"R$" #,##0.00';
+
+    for (let c = 1; c <= specsPend.length; c++) {
+      row.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: COR_PENDENTE_BG } };
+    }
+    row.getCell(11).font = { color: { argb: COR_PENDENTE_TXT }, bold: true };
+    row.getCell(13).font = { color: { argb: COR_PENDENTE_TXT }, bold: true };
+
+    linhaPend++;
+  }
+  const ultimaLinhaPend = linhaPend - 1;
+  if (ultimaLinhaPend >= 5) {
+    finalizarColunas(wsPend, specsPend, 4, 5, ultimaLinhaPend);
+    zebrarLinhas(wsPend, 5, ultimaLinhaPend, specsPend.length);
+    wsPend.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: specsPend.length } };
+  } else {
+    wsPend.getCell(5, 1).value = "Nenhuma pendência paga encontrada no período.";
+    wsPend.getCell(5, 1).font = { italic: true };
+  }
+
+  // ---------- Aba 3: Funcionários (um por linha, dados de cadastro) ----------
   const wsFunc = wb.addWorksheet("Funcionários", { views: [{ state: "frozen", ySplit: 4 }] });
   const specsFunc: ColunaSpec[] = [
     { header: "Nome", min: 24, max: 40, align: "left" },
@@ -401,6 +507,10 @@ export async function gerarPlanilhaGeral(
     ["Funcionários ativos (empresa toda)", ativos],
     [filtroMes ? "Comprovantes em PDF neste período" : "Total de comprovantes em PDF", documentos.length],
     [filtroMes ? "Registros de pagamento neste período" : "Total de registros de pagamento", pagamentos.length],
+    [
+      filtroMes ? "Pendências pagas neste período (reenvios bancários)" : "Pendências pagas (reenvios bancários)",
+      pendencias.length,
+    ],
     ["Pagamentos cancelados/rejeitados (alertas)", totalAlertas],
   ];
   let l = 4;
