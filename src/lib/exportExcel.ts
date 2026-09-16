@@ -164,7 +164,8 @@ interface GrupoFuncionario {
 export async function gerarPlanilhaGeral(
   funcionarios: Funcionario[],
   pagamentosBrutos: PagamentoResolvido[],
-  documentos: DocumentoResolvido[]
+  documentos: DocumentoResolvido[],
+  filtroMes?: "08" | "09" | null
 ): Promise<ExcelJS.Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Comprovantes TRE";
@@ -176,8 +177,17 @@ export async function gerarPlanilhaGeral(
   // não tem horário de verão, então o offset é sempre -03:00.
   const dataGeracao = agora.toLocaleString("pt-BR", { timeZone: "America/Bahia" });
 
+  const NOME_MES: Record<string, string> = { "08": "Agosto/2026", "09": "Setembro/2026" };
+  const sufixoTitulo = filtroMes ? ` — ${NOME_MES[filtroMes] || filtroMes}` : "";
+
   const funcionarioPorId = new Map(funcionarios.map((f) => [employeeId(f), f]));
-  const pagamentos = pagamentosBrutos.filter(isPagamentoValido);
+  let pagamentos = pagamentosBrutos.filter(isPagamentoValido);
+  let documentosFiltrados = documentos;
+  if (filtroMes) {
+    pagamentos = pagamentos.filter((p) => p.data && p.data.slice(5, 7) === filtroMes);
+    documentosFiltrados = documentos.filter((d) => d.data && d.data.slice(5, 7) === filtroMes);
+  }
+  documentos = documentosFiltrados;
 
   // ---------- Aba 1: Pagamentos (uma linha por funcionário, uma coluna por data) ----------
   const wsPag = wb.addWorksheet("Pagamentos");
@@ -237,7 +247,7 @@ export async function gerarPlanilhaGeral(
   const specsPag: ColunaSpec[] = [...specsFixas, ...specsData, specTotal];
   const totalColunas = specsPag.length;
 
-  adicionarFaixaDeTitulo(wsPag, "Comprovantes TRE — Pagamentos por Funcionário", `Gerado em ${dataGeracao}`, totalColunas);
+  adicionarFaixaDeTitulo(wsPag, `Comprovantes TRE — Pagamentos por Funcionário${sufixoTitulo}`, `Gerado em ${dataGeracao}`, totalColunas);
 
   wsPag.getRow(4).values = specsPag.map((c) => c.header);
   wsPag.views = [{ state: "frozen", xSplit: specsFixas.length, ySplit: 4 }];
@@ -315,7 +325,7 @@ export async function gerarPlanilhaGeral(
     { header: "Total Pagamentos", min: 12, max: 18, align: "center" },
     { header: "Alertas", min: 9, max: 10, align: "center" },
   ];
-  adicionarFaixaDeTitulo(wsFunc, "Comprovantes TRE — Funcionários", `Gerado em ${dataGeracao}`, specsFunc.length);
+  adicionarFaixaDeTitulo(wsFunc, `Comprovantes TRE — Funcionários${sufixoTitulo}`, `Gerado em ${dataGeracao}`, specsFunc.length);
   wsFunc.getRow(4).values = specsFunc.map((c) => c.header);
   estilizarCabecalho(wsFunc, 4, specsFunc.length);
 
@@ -334,7 +344,9 @@ export async function gerarPlanilhaGeral(
     documentosPorFuncionario.set(d.funcionarioResolvidoId, arr);
   }
 
-  const funcionariosOrdenados = [...funcionarios].sort((a, b) => a.nome.localeCompare(b.nome));
+  const funcionariosOrdenados = [...funcionarios]
+    .filter((f) => !filtroMes || (pagamentosPorFuncionario.get(employeeId(f)) || []).length > 0)
+    .sort((a, b) => a.nome.localeCompare(b.nome));
 
   linha = 5;
   for (const f of funcionariosOrdenados) {
@@ -379,15 +391,16 @@ export async function gerarPlanilhaGeral(
   const wsResumo = wb.addWorksheet("Resumo");
   wsResumo.getColumn(1).width = 34;
   wsResumo.getColumn(2).width = 16;
-  adicionarFaixaDeTitulo(wsResumo, "Comprovantes TRE — Resumo", `Gerado em ${dataGeracao}`, 2);
+  adicionarFaixaDeTitulo(wsResumo, `Comprovantes TRE — Resumo${sufixoTitulo}`, `Gerado em ${dataGeracao}`, 2);
 
   const totalAlertas = pagamentos.filter((p) => p.situacao === "Cancelado" || p.situacao === "Rejeitado").length;
   const ativos = funcionarios.filter((f) => f.status === "ATIVO").length;
   const resumoLinhas: [string, string | number][] = [
-    ["Total de funcionários", funcionarios.length],
-    ["Funcionários ativos", ativos],
-    ["Total de comprovantes em PDF", documentos.length],
-    ["Total de registros de pagamento", pagamentos.length],
+    ["Período", filtroMes ? NOME_MES[filtroMes] || filtroMes : "Todos os meses"],
+    ["Total de funcionários (empresa toda)", funcionarios.length],
+    ["Funcionários ativos (empresa toda)", ativos],
+    [filtroMes ? "Comprovantes em PDF neste período" : "Total de comprovantes em PDF", documentos.length],
+    [filtroMes ? "Registros de pagamento neste período" : "Total de registros de pagamento", pagamentos.length],
     ["Pagamentos cancelados/rejeitados (alertas)", totalAlertas],
   ];
   let l = 4;
