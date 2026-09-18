@@ -31,7 +31,7 @@ export function parseEmployeesSpreadsheet(bytes: Buffer): { funcionarios: Funcio
   }
   if (headerRowIdx === -1) headerRowIdx = 0;
 
-  const headerRow = (rows[headerRowIdx] || []).map((c) => normalizarTexto(String(c ?? "")));
+  const headerRow = Array.from(rows[headerRowIdx] || [], (c) => normalizarTexto(String(c ?? "")));
   const dataRows = rows.slice(headerRowIdx + 1);
 
   const col = {
@@ -143,7 +143,7 @@ function normalizarTexto(s: string): string {
  */
 function encontrarColuna(headers: string[], candidatos: string[], excluir: string[] = []): number {
   for (const cand of candidatos) {
-    const idx = headers.findIndex((h) => h.includes(cand) && !excluir.some((ex) => h.includes(ex)));
+    const idx = headers.findIndex((h) => (h ?? "").includes(cand) && !excluir.some((ex) => (h ?? "").includes(ex)));
     if (idx !== -1) return idx;
   }
   return -1;

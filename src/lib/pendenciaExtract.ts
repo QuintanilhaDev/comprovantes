@@ -54,7 +54,7 @@ const CANDIDATOS_HEADER: Record<string, string[]> = {
 
 function encontrarColunaPorHeader(headers: string[], candidatos: string[]): number {
   for (const cand of candidatos) {
-    const idx = headers.findIndex((h) => h === cand || h.includes(cand));
+    const idx = headers.findIndex((h) => h === cand || (h ?? "").includes(cand));
     if (idx !== -1) return idx;
   }
   return -1;
@@ -67,7 +67,7 @@ function encontrarColunaPorHeader(headers: string[], candidatos: string[]): numb
  */
 function detectarColunasPorHeader(rows: unknown[][]): { headerRowIdx: number; col: Record<string, number> } | null {
   for (let i = 0; i < Math.min(rows.length, 10); i++) {
-    const linha = rows[i].map((c) => normalizarTexto(String(c ?? "")));
+    const linha = Array.from(rows[i], (c) => normalizarTexto(String(c ?? "")));
     if (linha.every((c) => !c)) continue;
     const colNome = encontrarColunaPorHeader(linha, CANDIDATOS_HEADER.nome);
     const colCpf = encontrarColunaPorHeader(linha, CANDIDATOS_HEADER.cpf);
