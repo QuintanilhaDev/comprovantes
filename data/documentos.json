@@ -3820,5 +3820,70 @@
   "complemento": false,
   "fonteClassificacao": "texto_pdf",
   "arquivoRelativo": "09 - SETEMBRO/2026-09-05/2026-09-05 - Salário - PIX - Sharlston Cardoso Santos.pdf"
+ },
+ {
+  "id": "PAGAMENTO/08 - AGOSTO/2026-08-26/2026-08-26 - Cristie Sintia Gomes Guedes R$ 106,20.pdf",
+  "nome": "Cristie Sintia Gomes Guedes",
+  "nomeNorm": "CRISTIE SINTIA GOMES GUEDES",
+  "cpf": "00586699570",
+  "tipo": "NAO_IDENTIFICADO",
+  "situacao": "Pago",
+  "valor": 106.2,
+  "data": "2026-08-26",
+  "complemento": false,
+  "fonteClassificacao": null,
+  "arquivoRelativo": "08 - AGOSTO/2026-08-26/2026-08-26 - Cristie Sintia Gomes Guedes R$ 106,20.pdf"
+ },
+ {
+  "id": "PAGAMENTO/08 - AGOSTO/2026-08-26/2026-08-26 - Cristie Sintia Gomes Guedes R$ 132,00.pdf",
+  "nome": "Cristie Sintia Gomes Guedes",
+  "nomeNorm": "CRISTIE SINTIA GOMES GUEDES",
+  "cpf": "00586699570",
+  "tipo": "NAO_IDENTIFICADO",
+  "situacao": "Pago",
+  "valor": 132,
+  "data": "2026-08-26",
+  "complemento": false,
+  "fonteClassificacao": null,
+  "arquivoRelativo": "08 - AGOSTO/2026-08-26/2026-08-26 - Cristie Sintia Gomes Guedes R$ 132,00.pdf"
+ },
+ {
+  "id": "PAGAMENTO/08 - AGOSTO/2026-08-26/2026-08-26 - Hiali Dias Rocha R$ 132,00.pdf",
+  "nome": "Hiali Dias Rocha",
+  "nomeNorm": "HIALI DIAS ROCHA",
+  "cpf": "06673764538",
+  "tipo": "NAO_IDENTIFICADO",
+  "situacao": "Pago",
+  "valor": 132,
+  "data": "2026-08-26",
+  "complemento": false,
+  "fonteClassificacao": null,
+  "arquivoRelativo": "08 - AGOSTO/2026-08-26/2026-08-26 - Hiali Dias Rocha R$ 132,00.pdf"
+ },
+ {
+  "id": "PAGAMENTO/08 - AGOSTO/2026-08-26/2026-08-26 - Samuel Nogueira dos Santos R$ 132,00.pdf",
+  "nome": "Samuel Nogueira dos Santos",
+  "nomeNorm": "SAMUEL NOGUEIRA DOS SANTOS",
+  "cpf": "85900914577",
+  "tipo": "NAO_IDENTIFICADO",
+  "situacao": "Pago",
+  "valor": 132,
+  "data": "2026-08-26",
+  "complemento": false,
+  "fonteClassificacao": null,
+  "arquivoRelativo": "08 - AGOSTO/2026-08-26/2026-08-26 - Samuel Nogueira dos Santos R$ 132,00.pdf"
+ },
+ {
+  "id": "PAGAMENTO/08 - AGOSTO/2026-08-26/2026-08-26 - Samuel Nogueira dos Santos R$ 63,00.pdf",
+  "nome": "Samuel Nogueira dos Santos",
+  "nomeNorm": "SAMUEL NOGUEIRA DOS SANTOS",
+  "cpf": "85900914577",
+  "tipo": "NAO_IDENTIFICADO",
+  "situacao": "Pago",
+  "valor": 63,
+  "data": "2026-08-26",
+  "complemento": false,
+  "fonteClassificacao": null,
+  "arquivoRelativo": "08 - AGOSTO/2026-08-26/2026-08-26 - Samuel Nogueira dos Santos R$ 63,00.pdf"
  }
 ]

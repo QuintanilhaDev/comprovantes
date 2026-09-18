@@ -1,5 +1,8 @@
 import type { Pagamento, TipoBeneficio } from "./types";
 
+/** Qualquer objeto com pelo menos valor+tipo serve (Pagamento, PagamentoReal, etc). */
+type ComValorETipo = Pick<Pagamento, "valor" | "tipo">;
+
 /**
  * Constrói um mapa "valor exato -> tipo mais provável" a partir do histórico de
  * pagamentos já classificados com confiança (ex: vindos de relatórios que
@@ -11,7 +14,7 @@ import type { Pagamento, TipoBeneficio } from "./types";
  * nome do arquivo dizem se é Vale Transporte ou Auxílio (comum em lotes de
  * comprovantes de Pix, que não mencionam o tipo em lugar nenhum).
  */
-export function construirMapaValorTipo(pagamentos: Pagamento[]): Map<number, TipoBeneficio> {
+export function construirMapaValorTipo(pagamentos: ComValorETipo[]): Map<number, TipoBeneficio> {
   const contagem = new Map<number, Map<TipoBeneficio, number>>();
 
   for (const p of pagamentos) {

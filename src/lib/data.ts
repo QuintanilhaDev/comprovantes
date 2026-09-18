@@ -91,17 +91,51 @@ async function carregarResolvidos(): Promise<void> {
       return ajuste ? { ...d, ...ajuste } : d;
     });
 
-    const pagamentosResolvidos: PagamentoResolvido[] = deduplicarPagamentos(
-      pagamentos.map((p) => {
-        const f = matchFuncionario(p.nomeNorm, p.cpf, funcionarios, cpfIndex, nomeIndex, porPrimeiraPalavra);
-        return { ...p, funcionarioResolvidoId: f ? employeeId(f) : null };
-      })
-    );
-
     const documentosResolvidos: DocumentoResolvido[] = documentosBrutos.map((d) => {
       const f = matchFuncionario(d.nomeNorm, d.cpf, funcionarios, cpfIndex, nomeIndex, porPrimeiraPalavra);
       return { ...d, funcionarioResolvidoId: f ? employeeId(f) : null };
     });
+
+    const pagamentosResolvidosBrutos: PagamentoResolvido[] = pagamentos.map((p) => {
+      const f = matchFuncionario(p.nomeNorm, p.cpf, funcionarios, cpfIndex, nomeIndex, porPrimeiraPalavra);
+      return { ...p, funcionarioResolvidoId: f ? employeeId(f) : null };
+    });
+
+    // Alguns comprovantes individuais (ex: um PDF avulso anexado manualmente) não
+    // têm nenhum relatório em lote cobrindo aquele dia — sem isso, o funcionário
+    // sumiria do "Histórico no relatório do banco" e da planilha exportada mesmo
+    // tendo comprovante. Preenche com uma entrada "sintética" a partir do próprio
+    // comprovante, só quando aquele pagamento ainda não está representado.
+    const cobertos = new Set(
+      pagamentosResolvidosBrutos
+        .filter((p) => p.data && p.valor !== null)
+        .map((p) => `${p.funcionarioResolvidoId || p.nomeNorm}|${p.data}|${p.valor}`)
+    );
+    const pagamentosDeDocumentos: PagamentoResolvido[] = [];
+    for (const d of documentosResolvidos) {
+      if (!d.data || d.valor === null) continue;
+      const chave = `${d.funcionarioResolvidoId || d.nomeNorm}|${d.data}|${d.valor}`;
+      if (cobertos.has(chave)) continue; // já existe um pagamento real (com tipo mais confiável) para isso
+      cobertos.add(chave);
+      pagamentosDeDocumentos.push({
+        nome: d.nome,
+        nomeNorm: d.nomeNorm,
+        cpf: d.cpf,
+        tipo: d.tipo,
+        periodo: null,
+        data: d.data,
+        valor: d.valor,
+        situacao: d.situacao,
+        fonteArquivo: d.arquivoRelativo,
+        origem: "upload_manual",
+        funcionarioResolvidoId: d.funcionarioResolvidoId,
+      });
+    }
+
+    const pagamentosResolvidos: PagamentoResolvido[] = deduplicarPagamentos([
+      ...pagamentosResolvidosBrutos,
+      ...pagamentosDeDocumentos,
+    ]);
 
     cache.pagamentosResolvidos = pagamentosResolvidos;
     cache.documentosResolvidos = documentosResolvidos;

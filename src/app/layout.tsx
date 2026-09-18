@@ -54,6 +54,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   )}
                 </Link>
                 <Link
+                  href="/pendencias"
+                  className="rounded-md px-3 py-1.5 text-muted transition hover:bg-onyx-elevated hover:text-paper"
+                >
+                  Pendências
+                </Link>
+                <Link
                   href="/anexar"
                   className="rounded-md border border-orange/30 bg-orange/10 px-3 py-1.5 font-medium text-orange transition hover:bg-orange/20"
                 >
