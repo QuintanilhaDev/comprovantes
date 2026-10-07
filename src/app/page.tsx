@@ -69,6 +69,12 @@ export default async function HomePage() {
         >
           Só Setembro
         </a>
+        <a
+          href="/api/exportar?mes=10"
+          className="inline-flex items-center gap-2 rounded-lg border border-onyx-border bg-onyx-soft/60 px-4 py-2 text-sm text-muted transition hover:border-orange/40 hover:text-paper"
+        >
+          Só Outubro
+        </a>
       </div>
     </div>
   );

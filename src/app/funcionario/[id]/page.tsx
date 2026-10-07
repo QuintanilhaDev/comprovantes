@@ -10,11 +10,12 @@ import type { TipoBeneficio } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-const ORDEM_TIPOS: TipoBeneficio[] = ["SALARIO", "VT", "AUXILIO", "NAO_IDENTIFICADO"];
+const ORDEM_TIPOS: TipoBeneficio[] = ["SALARIO", "VT", "AUXILIO", "RESCISAO", "NAO_IDENTIFICADO"];
 const TITULOS: Record<TipoBeneficio, string> = {
   SALARIO: "Salário",
   VT: "Vale Transporte",
   AUXILIO: "Auxílio (Vale Alimentação)",
+  RESCISAO: "Rescisão",
   NAO_IDENTIFICADO: "Comprovantes não classificados",
 };
 

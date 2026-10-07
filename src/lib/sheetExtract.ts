@@ -17,8 +17,13 @@ export function parseEmployeesSpreadsheet(bytes: Buffer): { funcionarios: Funcio
   const avisos: string[] = [];
   const wb = XLSX.read(bytes, { type: "buffer", cellDates: true });
 
+  // A aba já se chamou "BASE FATURAMENTO" e hoje se chama "PLANILHA BASE" — aceitamos as duas
+  // (e, em último caso, a primeira aba), para não ler uma aba errada se alguém reordenar as abas.
+  const nomeAba = (n: string) => n.toUpperCase();
   const sheetName =
-    wb.SheetNames.find((n) => n.toUpperCase().includes("BASE FATURAMENTO")) || wb.SheetNames[0];
+    wb.SheetNames.find((n) => nomeAba(n).includes("BASE FATURAMENTO")) ||
+    wb.SheetNames.find((n) => nomeAba(n).includes("PLANILHA BASE")) ||
+    wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
   const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false });
 
@@ -39,6 +44,9 @@ export function parseEmployeesSpreadsheet(bytes: Buffer): { funcionarios: Funcio
       encontrarColuna(headerRow, ["N DO POLO", "NUMERO DO POLO"]) !== -1
         ? encontrarColuna(headerRow, ["N DO POLO", "NUMERO DO POLO"])
         : encontrarColuna(headerRow, ["POLO"], ["MUNICIPIO", "ZONA"]),
+    // Rótulo descritivo do polo (ex: "P14 IRECÊ"). Na planilha atual a coluna "Nº DO POLO" traz só
+    // o número (14) e o rótulo completo fica em "ABA DE ORIGEM".
+    abaOrigem: encontrarColuna(headerRow, ["ABA DE ORIGEM"]),
     zonaEleitoral: encontrarColuna(headerRow, ["ZONA ELEITORAL"]),
     municipioZona: encontrarColuna(headerRow, ["MUNICIPIO DA ZONA", "MUNICIPIO ZONA"]),
     municipioPolo: encontrarColuna(headerRow, ["MUNICIPIO POLO", "MUNICIPIO DO POLO"]),
@@ -69,7 +77,7 @@ export function parseEmployeesSpreadsheet(bytes: Buffer): { funcionarios: Funcio
   }
 
   const avisosColunasOpcionais = (Object.keys(col) as (keyof typeof col)[]).filter(
-    (k) => col[k] === -1 && k !== "nome" && k !== "cpf"
+    (k) => col[k] === -1 && k !== "nome" && k !== "cpf" && k !== "abaOrigem"
   );
   if (avisosColunasOpcionais.length > 0) {
     avisos.push(
@@ -97,7 +105,7 @@ export function parseEmployeesSpreadsheet(bytes: Buffer): { funcionarios: Funcio
       cpfFormatado: formatCpf(cpf),
       nome: nomeRaw.trim(),
       nomeNorm: normalizeName(nomeRaw),
-      polo: (get(r, col.polo) as number | string) ?? null,
+      polo: poloDaLinha(get(r, col.abaOrigem), get(r, col.polo)),
       zonaEleitoral: (get(r, col.zonaEleitoral) as number | string) ?? null,
       municipioZona: (get(r, col.municipioZona) as string) ?? null,
       municipioPolo: (get(r, col.municipioPolo) as string) ?? null,
@@ -124,6 +132,13 @@ export function parseEmployeesSpreadsheet(bytes: Buffer): { funcionarios: Funcio
   }
 
   return { funcionarios, avisos };
+}
+
+/** Prefere o rótulo descritivo ("P14 IRECÊ", da coluna "ABA DE ORIGEM"); se não houver, usa o número do polo. */
+function poloDaLinha(abaOrigem: unknown, numeroPolo: unknown): number | string | null {
+  if (typeof abaOrigem === "string" && abaOrigem.trim()) return abaOrigem.trim();
+  if (typeof numeroPolo === "number" || (typeof numeroPolo === "string" && numeroPolo.trim())) return numeroPolo as number | string;
+  return null;
 }
 
 /** Maiúsculo, sem acento, só letras/números/espaço — para comparar cabeçalhos com tolerância a variações. */

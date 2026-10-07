@@ -23,7 +23,15 @@ export async function POST(req: NextRequest) {
   const pagamentosBase = await getPagamentos();
   const pagamentosReais: PagamentoReal[] = pagamentosBase
     .filter((p) => p.situacao !== "Cancelado" && p.situacao !== "Rejeitado")
-    .map((p) => ({ nome: p.nome, nomeNorm: p.nomeNorm, cpf: p.cpf, tipo: p.tipo, valor: p.valor, data: p.data }));
+    .map((p) => ({
+      nome: p.nome,
+      nomeNorm: p.nomeNorm,
+      cpf: p.cpf,
+      tipo: p.tipo,
+      valor: p.valor,
+      data: p.data,
+      funcionarioResolvidoId: p.funcionarioResolvidoId,
+    }));
 
   if (pagamentosReais.length === 0) {
     return NextResponse.json(

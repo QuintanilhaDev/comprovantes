@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "reindex": "node scripts/reindex.mjs",
-    "build-baseline": "tsx scripts/build-baseline.ts"
+    "build-baseline": "tsx scripts/build-baseline.ts",
+    "atualizar-base": "tsx scripts/atualizar-base.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",

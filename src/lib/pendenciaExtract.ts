@@ -42,6 +42,7 @@ function tipoDoTexto(raw: string): TipoBeneficio | null {
   if (/\bVT\b|TRANSPORTE/.test(v)) return "VT";
   if (/\bVA\b|AUXILIO/.test(v)) return "AUXILIO";
   if (/SALARIO/.test(v)) return "SALARIO";
+  if (/RESCISAO|RECISAO/.test(v)) return "RESCISAO";
   return null;
 }
 

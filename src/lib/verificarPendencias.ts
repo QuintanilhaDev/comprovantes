@@ -10,6 +10,8 @@ export interface PagamentoReal {
   tipo: TipoBeneficio;
   valor: number | null;
   data: string | null;
+  /** Funcionário já resolvido por getPagamentos() — evita refazer a busca por nome de dezenas de milhares de pagamentos a cada verificação. */
+  funcionarioResolvidoId?: string | null;
 }
 
 export type StatusPendencia = "PENDENTE_CONFIRMADA" | "JA_PAGO" | "VALOR_DIVERGENTE" | "NAO_ENCONTRADO";
@@ -57,8 +59,14 @@ export function verificarPendencias(
 
   const pagamentosPorPessoa = new Map<string, PagamentoReal[]>();
   for (const p of pagamentosReais) {
-    const f = matchFuncionario(p.nomeNorm, p.cpf, funcionarios, cpfIndex, nomeIndex, porPrimeiraPalavra);
-    const chave = f ? employeeId(f) : `nome:${p.nomeNorm}`;
+    const idResolvido =
+      p.funcionarioResolvidoId !== undefined
+        ? p.funcionarioResolvidoId
+        : (() => {
+            const f = matchFuncionario(p.nomeNorm, p.cpf, funcionarios, cpfIndex, nomeIndex, porPrimeiraPalavra);
+            return f ? employeeId(f) : null;
+          })();
+    const chave = idResolvido || `nome:${p.nomeNorm}`;
     const arr = pagamentosPorPessoa.get(chave) || [];
     arr.push(p);
     pagamentosPorPessoa.set(chave, arr);
@@ -118,7 +126,7 @@ export function verificarPendencias(
         : [];
 
     if (comValorIgual.length > 0) {
-      const maisRecente = comValorIgual.sort((a, b) => (b.data || "").localeCompare(a.data || ""))[0];
+      const maisRecente = [...comValorIgual].sort((a, b) => (b.data || "").localeCompare(a.data || ""))[0];
       resultados.push({
         linhaOriginal: linha.linhaOriginal,
         nome: funcionario ? funcionario.nome : linha.nome,
@@ -134,7 +142,7 @@ export function verificarPendencias(
       continue;
     }
 
-    const maisRecenteDivergente = candidatosMesmoTipo.sort((a, b) => (b.data || "").localeCompare(a.data || ""))[0];
+    const maisRecenteDivergente = [...candidatosMesmoTipo].sort((a, b) => (b.data || "").localeCompare(a.data || ""))[0];
     const valorPlanilhaTxt = linha.valor !== null ? linha.valor.toFixed(2).replace(".", ",") : "?";
     const valorRealTxt = maisRecenteDivergente.valor !== null ? maisRecenteDivergente.valor.toFixed(2).replace(".", ",") : "?";
     resultados.push({

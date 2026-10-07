@@ -1,4 +1,4 @@
-export type TipoBeneficio = "SALARIO" | "VT" | "AUXILIO" | "NAO_IDENTIFICADO";
+export type TipoBeneficio = "SALARIO" | "VT" | "AUXILIO" | "RESCISAO" | "NAO_IDENTIFICADO";
 
 export type Situacao = "Pago" | "Cancelado" | "Rejeitado" | "Pendente";
 

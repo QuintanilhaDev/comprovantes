@@ -4,11 +4,12 @@ Ferramenta interna para consultar rapidamente, por **nome ou CPF**, se um funcio
 recebeu **Salário**, **Vale Transporte** ou **Auxílio (Vale Alimentação)** — com o
 comprovante em PDF pronto para mostrar na hora.
 
-Já vem carregada com os dados que você enviou (planilha `BASE FATURAMENTO` + os 294
-comprovantes individuais do `PAGAMENTO.zip`, de agosto/setembro de 2026), incluindo:
+Já vem carregada com os dados enviados até **06/10/2026** (planilha `PLANILHA BASE FATURAMENTO TRE`,
+atualizada em 05/10/2026, + comprovantes individuais e relatórios do banco de agosto a outubro de
+2026), incluindo:
 
-- **1.554 funcionários** cadastrados;
-- **294 comprovantes em PDF** organizados por funcionário;
+- **1.593 funcionários** cadastrados;
+- **300 comprovantes em PDF** organizados por funcionário;
 - O **histórico oficial dos relatórios do banco** (quem foi pago, quando, quanto, e se
   algum pagamento foi **cancelado ou rejeitado** — isso já veio pronto a partir dos
   relatórios de retorno bancário que estavam dentro do seu ZIP).
@@ -67,7 +68,7 @@ Você precisa ter o **Node.js** instalado (versão 18 ou mais recente — recome
    npm run dev
    ```
 5. Abra o navegador em **http://localhost:3000** — a ferramenta já vai estar
-   funcionando, com os 1.554 funcionários e os 294 comprovantes carregados.
+   funcionando, com os 1.593 funcionários e os 300 comprovantes carregados.
 
 Para parar o servidor, volte ao terminal e aperte `Ctrl+C`.
 
@@ -191,7 +192,7 @@ nova versão publicada.
 O Vercel, por padrão, **não guarda arquivos enviados por upload** de forma permanente —
 o armazenamento de um projeto hospedado lá é temporário. Isso só afeta os **novos
 arquivos que forem anexados pela tela "Anexar arquivos" depois de publicado**; os dados
-que já vêm prontos com o projeto (a planilha e os 294 comprovantes iniciais) continuam
+que já vêm prontos com o projeto (a planilha e os comprovantes iniciais) continuam
 funcionando normalmente, sempre.
 
 Se você quiser que os uploads feitos direto no site publicado também sejam permanentes,
@@ -222,10 +223,11 @@ comprovantes-tre/
 ├── data/
 │   ├── employees.json        → base de funcionários (gerada a partir da sua planilha)
 │   ├── pagamentos.json       → histórico oficial extraído dos relatórios do banco
-│   ├── documentos.json       → lista dos 294 comprovantes em PDF e sua classificação
+│   ├── documentos.json       → lista dos 300 comprovantes em PDF e sua classificação
 │   ├── comprovantes/         → os PDFs individuais, organizados por mês/data
 │   └── uploads/               → (criado automaticamente) uploads feitos pela tela "Anexar"
 ├── scripts/
+│   ├── atualizar-base.ts     → atualização mensal: planilha + PDFs novos (npm run atualizar-base)
 │   └── reindex.mjs           → consolida uploads locais na base principal (npm run reindex)
 ├── src/
 │   ├── app/                  → páginas e rotas (Next.js App Router)
@@ -239,6 +241,29 @@ comprovantes-tre/
 ├── .env.local.example
 └── package.json
 ```
+
+---
+
+### Atualização mensal da base (recomendado)
+
+Para incluir uma nova planilha de funcionários e os PDFs do mês (relatórios do banco e comprovantes
+individuais) **sem apagar o que já existe** e sem o limite de tamanho da tela "Anexar arquivos":
+
+```
+npm install
+npm run atualizar-base -- --planilha "PLANILHA BASE FATURAMENTO TRE.xlsx" --zip "11 - NOVEMBRO.zip"
+```
+
+- Pode repetir `--zip` (ou usar `--pasta "caminho/da/pasta"`) para vários meses.
+- Use `--dry-run` no fim do comando para só **ver** o que seria feito, sem gravar nada.
+- Relatórios que já estavam na base são substituídos (não duplicados), e relatórios repetidos em
+  duas pastas (ex.: "Cerimônia de Lacração") são lidos uma vez só.
+- O script confere a quantidade de pagamentos de cada relatório com a que o próprio banco informa
+  no cabeçalho e avisa se algo não bater.
+- Depois é só conferir (`npm run dev`) e fazer o commit/push no GitHub.
+
+> Pagamentos de **Rescisão** (relatórios "Remessa Bancária - Rescisões") aparecem como tipo
+> "Rescisão" na busca e na planilha exportada.
 
 ---
 

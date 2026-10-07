@@ -4,7 +4,7 @@ import type { TipoBeneficio } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-const TIPOS_VALIDOS: TipoBeneficio[] = ["SALARIO", "VT", "AUXILIO", "NAO_IDENTIFICADO"];
+const TIPOS_VALIDOS: TipoBeneficio[] = ["SALARIO", "VT", "AUXILIO", "RESCISAO", "NAO_IDENTIFICADO"];
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

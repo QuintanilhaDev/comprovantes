@@ -8,6 +8,7 @@ const OPCOES: { valor: TipoBeneficio; label: string }[] = [
   { valor: "SALARIO", label: "Salário" },
   { valor: "VT", label: "Vale Transporte" },
   { valor: "AUXILIO", label: "Auxílio (VA)" },
+  { valor: "RESCISAO", label: "Rescisão" },
 ];
 
 export default function ClassificarDocumento({ documentoId }: { documentoId: string }) {

@@ -43,7 +43,13 @@ async function main() {
 
   const docsExtra = await readJson(path.join(UPLOADS, "documentos_extra.json"), []);
   const pagsExtra = await readJson(path.join(UPLOADS, "pagamentos_extra.json"), []);
-  const employeesOverride = await readJson(path.join(UPLOADS, "employees_override.json"), null);
+  const employeesOverrideRaw = await readJson(path.join(UPLOADS, "employees_override.json"), null);
+  // Aceita o formato novo ({ baseSignature, funcionarios }) e o antigo (lista simples).
+  const employeesOverride = Array.isArray(employeesOverrideRaw)
+    ? employeesOverrideRaw
+    : employeesOverrideRaw?.funcionarios || null;
+  // Classificações manuais feitas na tela do funcionário (guardadas só em data/uploads).
+  const reclassificacoes = await readJson(path.join(UPLOADS, "documentos_reclassificacoes.json"), {});
 
   const docsBase = await readJson(path.join(DATA, "documentos.json"), []);
   const pagsBase = await readJson(path.join(DATA, "pagamentos.json"), []);
@@ -66,7 +72,8 @@ async function main() {
     }
   }
 
-  const novosDocs = [...docsBase, ...docsExtra];
+  // Sem isto, as classificações manuais seriam apagadas junto com a pasta data/uploads.
+  const novosDocs = [...docsBase, ...docsExtra].map((d) => (reclassificacoes[d.id] ? { ...d, ...reclassificacoes[d.id] } : d));
   const novosPags = [...pagsBase, ...pagsExtra];
 
   await fs.writeFile(path.join(DATA, "documentos.json"), JSON.stringify(novosDocs, null, 1));

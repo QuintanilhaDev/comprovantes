@@ -1,4 +1,5 @@
 import { brDateToIso, normalizeCpf, normalizeName, parseBrValor } from "./normalize";
+import { tipoSugeridoPeloNomeArquivo } from "./batchExtract";
 import type { Situacao, TipoBeneficio } from "./types";
 
 export interface ParsedReceipt {
@@ -15,6 +16,17 @@ export interface ParsedReceipt {
 }
 
 const FNAME_RE = /^(\d{4}-\d{2}-\d{2}) - (.+)\.pdf$/i;
+
+/**
+ * Alguns arquivos trazem prefixos descritivos antes do nome, separados por " - " (ex:
+ * "BB - PIX - Adiant. SAT - Allan Douglas Santos Neres"). O nome da pessoa é sempre o
+ * último trecho — sem isso o prefixo entrava no nome e o comprovante não era vinculado
+ * ao funcionário.
+ */
+function apenasNomeDaPessoa(texto: string): string {
+  const partes = texto.split(/\s+-\s+/).map((p) => p.trim()).filter(Boolean);
+  return partes.length > 0 ? partes[partes.length - 1] : texto.trim();
+}
 
 /** Extrai nome/valor a partir do padrão de nome de arquivo usado pela folha (ex: "2026-08-11 - FULANO_R$ 99,00.pdf"). */
 function parseFromFilename(filename: string) {
@@ -36,7 +48,7 @@ function parseFromFilename(filename: string) {
   const valorMatch = /^(.+?)_R\$\s*([\d.]+,\d{2})(?:_.+)?$/.exec(resto);
   if (valorMatch) {
     return {
-      nome: valorMatch[1].trim(),
+      nome: apenasNomeDaPessoa(valorMatch[1]),
       valor: parseBrValor(valorMatch[2]),
       dataArquivo,
       complemento,
@@ -47,7 +59,7 @@ function parseFromFilename(filename: string) {
   const valorMatch2 = /^(.+?) R\$ ([\d.]+,\d{2})$/.exec(resto);
   if (valorMatch2) {
     return {
-      nome: valorMatch2[1].trim(),
+      nome: apenasNomeDaPessoa(valorMatch2[1]),
       valor: parseBrValor(valorMatch2[2]),
       dataArquivo,
       complemento,
@@ -129,6 +141,10 @@ export async function parseReceiptPdf(filename: string, bytes: Buffer, tipoManua
     tipo = "AUXILIO";
   } else if (fromFilename.tipoHint) {
     tipo = fromFilename.tipoHint;
+  } else {
+    // Último recurso: o nome do arquivo cita um único tipo (ex: "...VT PENDENCIA AGOSTO...").
+    // Se citar VT e VA juntos (ambíguo) ou nenhum, continua "não identificado".
+    tipo = tipoSugeridoPeloNomeArquivo(filename) || "NAO_IDENTIFICADO";
   }
 
   const situacao: Situacao = fromText?.rejeitado ? "Rejeitado" : "Pago";

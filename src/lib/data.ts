@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readJsonLocal, readMutableJson, writeMutableJson } from "./storage";
 import type { Documento, Funcionario, Pagamento } from "./types";
 import { normalizeCpf, normalizeName } from "./normalize";
@@ -29,13 +30,36 @@ export function invalidateCache() {
   cache.loadedAt = 0;
 }
 
+/**
+ * Lista de funcionários vinda de uploads de planilha (tela "Anexar arquivos"). Guarda uma
+ * "assinatura" do employees.json que estava no projeto na hora do upload: se o projeto for
+ * atualizado depois (novo employees.json no GitHub/Vercel), a assinatura deixa de bater e
+ * a lista do projeto passa a valer — antes, um upload antigo ficava para sempre "por cima"
+ * e os funcionários novos do projeto nunca apareciam.
+ */
+interface EmployeesOverride {
+  baseSignature: string;
+  funcionarios: Funcionario[];
+}
+
+function assinaturaDaBase(baseline: Funcionario[]): string {
+  return createHash("sha1").update(JSON.stringify(baseline)).digest("hex");
+}
+
 export async function getFuncionarios(): Promise<Funcionario[]> {
   if (cache.funcionarios && isFresh()) return cache.funcionarios;
 
   const baseline = await readJsonLocal<Funcionario[]>("employees.json", []);
-  const override = await readMutableJson<Funcionario[] | null>("employees_override", null);
+  const override = await readMutableJson<EmployeesOverride | Funcionario[] | null>("employees_override", null);
 
-  const list = override && override.length > 0 ? override : baseline;
+  // Formato antigo (lista simples, sem assinatura) não dá para saber se é mais novo que o
+  // projeto — como o projeto é sempre regerado a partir da planilha completa, vale o projeto.
+  const overrideValido =
+    override && !Array.isArray(override) && override.baseSignature === assinaturaDaBase(baseline) && override.funcionarios?.length > 0
+      ? override.funcionarios
+      : null;
+
+  const list = overrideValido ?? baseline;
 
   // garante nomeNorm/cpf normalizados mesmo se vierem de upload manual
   const normalized = list.map((f) => ({
@@ -86,7 +110,14 @@ async function carregarResolvidos(): Promise<void> {
       "documentos_reclassificacoes",
       {}
     );
-    const documentosBrutos = [...docBaseline, ...docExtra].map((d) => {
+    // Se o mesmo comprovante (mesmo id) aparece duas vezes, vale a cópia que já tem tipo definido —
+    // antes ele era listado duas vezes na tela do funcionário (uma delas "não classificada").
+    const docsPorId = new Map<string, Documento>();
+    for (const d of [...docBaseline, ...docExtra]) {
+      const atual = docsPorId.get(d.id);
+      if (!atual || (atual.tipo === "NAO_IDENTIFICADO" && d.tipo !== "NAO_IDENTIFICADO")) docsPorId.set(d.id, d);
+    }
+    const documentosBrutos = [...docsPorId.values()].map((d) => {
       const ajuste = reclassificacoes[d.id];
       return ajuste ? { ...d, ...ajuste } : d;
     });
@@ -192,7 +223,9 @@ export async function mesclarNovaPlanilha(novos: Funcionario[]) {
   const atuais = await getFuncionarios();
   const { mesclarFuncionarios } = await import("./mergeFuncionarios");
   const resultado = mesclarFuncionarios(atuais, novos);
-  await writeMutableJson("employees_override", resultado.resultado);
+  const baseline = await readJsonLocal<Funcionario[]>("employees.json", []);
+  const override: EmployeesOverride = { baseSignature: assinaturaDaBase(baseline), funcionarios: resultado.resultado };
+  await writeMutableJson("employees_override", override);
   invalidateCache();
   return resultado;
 }

@@ -14,12 +14,12 @@ export async function GET(req: NextRequest) {
   ]);
 
   const mesParam = req.nextUrl.searchParams.get("mes");
-  const filtroMes = mesParam === "08" || mesParam === "09" ? mesParam : null;
+  const filtroMes = mesParam === "08" || mesParam === "09" || mesParam === "10" ? mesParam : null;
 
   const buffer = await gerarPlanilhaGeral(funcionarios, pagamentos, documentos, filtroMes);
 
   const dataArquivo = new Date().toISOString().slice(0, 10);
-  const sufixo = filtroMes === "08" ? "-agosto" : filtroMes === "09" ? "-setembro" : "";
+  const sufixo = filtroMes === "08" ? "-agosto" : filtroMes === "09" ? "-setembro" : filtroMes === "10" ? "-outubro" : "";
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {

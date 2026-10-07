@@ -20,6 +20,7 @@ const TIPO_LABEL: Record<string, string> = {
   SALARIO: "Salário",
   VT: "Vale Transporte",
   AUXILIO: "Auxílio (VA)",
+  RESCISAO: "Rescisão",
   NAO_IDENTIFICADO: "Não identificado",
 };
 
@@ -165,7 +166,7 @@ export async function gerarPlanilhaGeral(
   funcionarios: Funcionario[],
   pagamentosBrutos: PagamentoResolvido[],
   documentos: DocumentoResolvido[],
-  filtroMes?: "08" | "09" | null
+  filtroMes?: "08" | "09" | "10" | null
 ): Promise<ExcelJS.Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Comprovantes TRE";
@@ -177,7 +178,7 @@ export async function gerarPlanilhaGeral(
   // não tem horário de verão, então o offset é sempre -03:00.
   const dataGeracao = agora.toLocaleString("pt-BR", { timeZone: "America/Bahia" });
 
-  const NOME_MES: Record<string, string> = { "08": "Agosto/2026", "09": "Setembro/2026" };
+  const NOME_MES: Record<string, string> = { "08": "Agosto/2026", "09": "Setembro/2026", "10": "Outubro/2026" };
   const sufixoTitulo = filtroMes ? ` — ${NOME_MES[filtroMes] || filtroMes}` : "";
 
   const funcionarioPorId = new Map(funcionarios.map((f) => [employeeId(f), f]));
@@ -414,4 +415,4 @@ export async function gerarPlanilhaGeral(
 
   const buffer = await wb.xlsx.writeBuffer();
   return buffer;
-}
+}

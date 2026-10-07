@@ -21,7 +21,7 @@ export const runtime = "nodejs";
 // do Vercel — no Hobby o limite máximo continua sendo ~10s por requisição).
 export const maxDuration = 60;
 
-const TIPOS_VALIDOS: TipoBeneficio[] = ["SALARIO", "VT", "AUXILIO", "NAO_IDENTIFICADO"];
+const TIPOS_VALIDOS: TipoBeneficio[] = ["SALARIO", "VT", "AUXILIO", "RESCISAO", "NAO_IDENTIFICADO"];
 
 export async function POST(req: NextRequest) {
   const form = await req.formData();

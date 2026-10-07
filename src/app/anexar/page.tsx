@@ -20,6 +20,7 @@ const TIPO_LABEL: Record<TipoBeneficio, string> = {
   SALARIO: "Salário",
   VT: "Vale Transporte",
   AUXILIO: "Auxílio (VA)",
+  RESCISAO: "Rescisão",
   NAO_IDENTIFICADO: "Não identificado",
 };
 
@@ -254,6 +255,7 @@ function ComprovantesUploader() {
             <option value="SALARIO">Salário</option>
             <option value="VT">Vale Transporte</option>
             <option value="AUXILIO">Auxílio (VA)</option>
+            <option value="RESCISAO">Rescisão</option>
           </select>
         </label>
 

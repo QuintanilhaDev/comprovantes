@@ -5,6 +5,7 @@ const TIPO_CONFIG: Record<TipoBeneficio, { label: string; className: string }> =
   SALARIO: { label: "Salário", className: "bg-sky-500/10 text-sky-300 border-sky-500/30" },
   VT: { label: "Vale Transporte", className: "bg-orange/10 text-orange border-orange/35" },
   AUXILIO: { label: "Auxílio (VA)", className: "bg-amber-400/10 text-amber-300 border-amber-400/30" },
+  RESCISAO: { label: "Rescisão", className: "bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30" },
   NAO_IDENTIFICADO: { label: "Não identificado", className: "bg-white/5 text-muted border-white/10" },
 };
 

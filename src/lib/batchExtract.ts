@@ -22,7 +22,7 @@ export interface RelatorioLoteParseado {
 // nome/CPF/situação/tipo, apenas dos formatos fixos de cada campo (CPF com
 // pontuação, agência/conta no formato NNNN-D, valores em R$, etc).
 const ROW_RE =
-  /(\d+)([A-Za-zÀ-ÿ.\-'\s]{3,60}?)(\d{3}\.\d{3}\.\d{3}-\d{2})(\d+-[\dXx]\s*\/\s*\d+-[\dXx])(Pago|Devolvido|Rejeitado|Pendente|Cancelado|Estornado|Agendado|Processando)(Vale Transporte|Auxílio|Auxilio|Sal[aá]rio)?R\$\s*([\d.]+,\d{2})/g;
+  /(\d+)([A-Za-zÀ-ÿ.\-'\s]{3,60}?)(\d{3}\.\d{3}\.\d{3}-\d{2})(\d+-[\dXx]\s*\/\s*\d+-[\dXx])(Pago|Devolvido|Rejeitado|Pendente|Cancelado|Estornado|Agendado|Processando)(Vale Transporte|Auxílio|Auxilio|Sal[aá]rio|Res?c?is[aã]o)?R\$\s*([\d.]+,\d{2})/g;
 
 const PIX_BLOCK_RE =
   /Comprovante Pix( Rejeitado)?[\s\S]*?VALOR:\s*R\$\s*([\d.]+,\d{2})[\s\S]*?(?:MOTIVO\s+([^\n]+))?[\s\S]*?DATA:\s*(\d{2}\/\d{2}\/\d{4})[\s\S]*?PAGO PARA:\s*([^\n]+)\nCPF:\s*([^\n]+)/g;
@@ -40,6 +40,8 @@ function tipoDoTexto(raw: string | undefined | null): TipoBeneficio {
   if (/ux/i.test(raw)) return "AUXILIO";
   if (/Transporte/i.test(raw)) return "VT";
   if (/al[aá]rio/i.test(raw)) return "SALARIO";
+  // O banco grafa "Recisão" (sem o "s") nos relatórios de rescisão — aceitamos as duas grafias.
+  if (/res?c?is[aã]o/i.test(raw)) return "RESCISAO";
   return "NAO_IDENTIFICADO";
 }
 
@@ -61,6 +63,9 @@ export function tipoSugeridoPeloNomeArquivo(filename: string): TipoBeneficio | n
   const mencionaVA = /\bVA\b|AUX[IÍ]LIO/.test(nome);
   const mencionaSalario = /SAL[AÁ]RIO/.test(nome);
 
+  const mencionaRescisao = /RES?C?IS[AÃ]O|RES?C?IS[OÕ]ES/.test(nome);
+
+  if (mencionaRescisao && !mencionaVT && !mencionaVA && !mencionaSalario) return "RESCISAO";
   if (mencionaSalario && !mencionaVT && !mencionaVA) return "SALARIO";
   if (mencionaVT && !mencionaVA) return "VT";
   if (mencionaVA && !mencionaVT) return "AUXILIO";
@@ -83,7 +88,7 @@ export function pareceRelatorioDeLote(texto: string): boolean {
 
 export function parseRelatorioDeLote(texto: string, filename: string): RelatorioLoteParseado {
   // Ex.: "Auxílio1243" (tipo do lote seguido, sem espaço, da quantidade de pagamentos)
-  const tipoHeaderMatch = /(Vale Transporte|Auxílio|Auxilio|Sal[aá]rio)\d+/.exec(texto);
+  const tipoHeaderMatch = /(Vale Transporte|Auxílio|Auxilio|Sal[aá]rio|Res?c?is[aã]o)\d+/.exec(texto);
   const tipoHeader = tipoHeaderMatch ? tipoDoTexto(tipoHeaderMatch[1]) : tipoSugeridoPeloNomeArquivo(filename);
 
   // Ex.: "TRE VA 19_21agosto26.xls" (nome do arquivo de folha usado internamente pelo banco)
