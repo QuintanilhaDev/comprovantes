@@ -8,9 +8,11 @@ import { compararNomes } from "./nameMatch";
  *   "REINAN D VIEIRA LIMA"    -> "REINAN DRUMMOND VIEIRA LIMA"
  *   "MARIA EDUARDA DA SILV"   -> "MARIA EDUARDA DA SILVA" (nome cortado por limite de caracteres)
  */
+const PALAVRAS_DE_LIGACAO = new Set(["DE", "DA", "DO", "DOS", "DAS", "E"]);
+
 function ehVariacaoDoMesmoNome(curto: string, completo: string): boolean {
-  const a = curto.split(" ").filter(Boolean);
-  const b = completo.split(" ").filter(Boolean);
+  const a = curto.split(" ").filter((t) => t && !PALAVRAS_DE_LIGACAO.has(t));
+  const b = completo.split(" ").filter((t) => t && !PALAVRAS_DE_LIGACAO.has(t));
   if (a.length < 2 || b.length < 2) return false;
 
   // Nome truncado no fim (ex: "MARIA EDUARDA DA SILV" vs "MARIA EDUARDA DA SILVA"):
@@ -34,19 +36,19 @@ function ehVariacaoDoMesmoNome(curto: string, completo: string): boolean {
         j++;
         continue;
       }
-      if (ta.length <= 2 && tb.startsWith(ta)) {
-        // inicial ou abreviação curta (ex: "C" ou "CA" para "CARDOSO")
+      if (ta.length === 1 && tb.startsWith(ta)) {
+        // inicial verdadeira (ex: "C" para "CARDOSO")
         i++;
         j++;
         continue;
       }
-      if (ta.length >= 3 && tb.startsWith(ta)) {
-        // palavra cortada (ex: "DRUM" para "DRUMMOND")
+      if (ta.length >= 4 && tb.startsWith(ta)) {
+        // palavra cortada (ex: "DRUM" para "DRUMMOND"), mínimo 4 letras
         i++;
         j++;
         continue;
       }
-      // tenta pular uma palavra do nome completo (sobrenome composto, "DE", "DOS" etc.)
+      // tenta pular uma palavra do nome completo (sobrenome composto)
       diferencas++;
       j++;
       if (diferencas > 1) return false;
