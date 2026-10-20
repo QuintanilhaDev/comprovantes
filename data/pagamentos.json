@@ -559906,5 +559906,53 @@
   "situacao": "Pago",
   "fonteArquivo": "2026-10-16 - BB - Remessa Bancária - VT Admissional - Out.pdf",
   "origem": "relatorio_lote"
+ },
+ {
+  "nome": "Amanda Santos Sousa",
+  "nomeNorm": "AMANDA SANTOS SOUSA",
+  "cpf": "08548419547",
+  "tipo": "RESCISAO",
+  "periodo": "RESCISAO.xlsx",
+  "data": "2026-10-19",
+  "valor": 1365.28,
+  "situacao": "Pago",
+  "fonteArquivo": "2026-10-19 - BB - Remessa Bancária - Rescisões.pdf",
+  "origem": "relatorio_lote"
+ },
+ {
+  "nome": "Geane Cardoso de Jesus",
+  "nomeNorm": "GEANE CARDOSO DE JESUS",
+  "cpf": "09969130501",
+  "tipo": "RESCISAO",
+  "periodo": "RESCISAO.xlsx",
+  "data": "2026-10-19",
+  "valor": 1177.82,
+  "situacao": "Pago",
+  "fonteArquivo": "2026-10-19 - BB - Remessa Bancária - Rescisões.pdf",
+  "origem": "relatorio_lote"
+ },
+ {
+  "nome": "Jose Anderson Carvalho",
+  "nomeNorm": "JOSE ANDERSON CARVALHO",
+  "cpf": "06017611542",
+  "tipo": "RESCISAO",
+  "periodo": "RESCISAO.xlsx",
+  "data": "2026-10-19",
+  "valor": 1117.43,
+  "situacao": "Pago",
+  "fonteArquivo": "2026-10-19 - BB - Remessa Bancária - Rescisões.pdf",
+  "origem": "relatorio_lote"
+ },
+ {
+  "nome": "Karen Gabrielen Santos Wanderl",
+  "nomeNorm": "KAREN GABRIELEN SANTOS WANDERL",
+  "cpf": "06181193537",
+  "tipo": "RESCISAO",
+  "periodo": "RESCISAO.xlsx",
+  "data": "2026-10-19",
+  "valor": 1251.25,
+  "situacao": "Pago",
+  "fonteArquivo": "2026-10-19 - BB - Remessa Bancária - Rescisões.pdf",
+  "origem": "relatorio_lote"
  }
 ]
