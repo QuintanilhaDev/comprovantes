@@ -4,8 +4,9 @@ import { getExtratoFuncionario, getFuncionarios } from "@/lib/data";
 import { findEmployeeById } from "@/lib/employeeId";
 import { SituacaoBadge, TipoBadge } from "@/components/Badge";
 import ClassificarDocumento from "@/components/ClassificarDocumento";
+import HistoricoPagamentos from "@/components/HistoricoPagamentos";
 import { formatBRL, isoDateToBr } from "@/lib/normalize";
-import type { DocumentoResolvido, PagamentoResolvido } from "@/lib/data";
+import type { DocumentoResolvido } from "@/lib/data";
 import type { TipoBeneficio } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -206,30 +207,14 @@ export default async function FuncionarioPage({ params }: { params: Promise<{ id
 
       {/* Histórico oficial do relatório do banco */}
       {pagamentosDoFuncionario.length > 0 && (
-        <div className="mt-8">
+        <div className="mt-8 animate-fade-up">
           <h2 className="mb-2.5 font-display text-sm font-semibold uppercase tracking-wide text-muted">
             Histórico no relatório do banco
             <span className="ml-2 rounded-full bg-onyx-elevated px-2 py-0.5 text-[11px] font-normal text-muted">
               {pagamentosDoFuncionario.length}
             </span>
           </h2>
-          <div className="overflow-hidden rounded-xl border border-onyx-border">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-onyx-elevated text-xs uppercase tracking-wide text-muted">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Data</th>
-                  <th className="px-3 py-2 font-medium">Tipo</th>
-                  <th className="px-3 py-2 font-medium">Valor</th>
-                  <th className="px-3 py-2 font-medium">Situação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-onyx-border">
-                {pagamentosDoFuncionario.map((p, i) => (
-                  <PagamentoRow key={i} p={p} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <HistoricoPagamentos pagamentos={pagamentosDoFuncionario} />
         </div>
       )}
     </div>
@@ -246,18 +231,3 @@ function Field({ label, value }: { label: string; value: string | number | null 
   );
 }
 
-function PagamentoRow({ p }: { p: PagamentoResolvido }) {
-  const problema = p.situacao === "Cancelado" || p.situacao === "Rejeitado";
-  return (
-    <tr className={problema ? "bg-rose-500/[0.04]" : undefined}>
-      <td className="px-3 py-2 text-muted">{isoDateToBr(p.data)}</td>
-      <td className="px-3 py-2">
-        <TipoBadge tipo={p.tipo} />
-      </td>
-      <td className="px-3 py-2 text-paper">{p.valor !== null ? formatBRL(p.valor) : "—"}</td>
-      <td className="px-3 py-2">
-        <SituacaoBadge situacao={p.situacao} />
-      </td>
-    </tr>
-  );
-}
