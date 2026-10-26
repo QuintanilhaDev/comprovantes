@@ -3898,5 +3898,31 @@
   "complemento": false,
   "fonteClassificacao": null,
   "arquivoRelativo": "09 - SETEMBRO/2026-09-20/2026-09-20 - BB - PIX - Adiant. SAT - Murilo Oliveira de Souza_R$ 114,00.pdf"
+ },
+ {
+  "id": "PAGAMENTO/10 - OUTUBRO/2026-10-23/2026-10-23 - BB - PIX - VA Admissional - Out.pdf",
+  "nome": "Italo Sousa Pereira",
+  "nomeNorm": "ITALO SOUSA PEREIRA",
+  "cpf": null,
+  "tipo": "AUXILIO",
+  "situacao": "Pago",
+  "valor": 132,
+  "data": "2026-10-23",
+  "complemento": false,
+  "fonteClassificacao": "texto_pdf",
+  "arquivoRelativo": "10 - OUTUBRO/2026-10-23/2026-10-23 - BB - PIX - VA Admissional - Out.pdf"
+ },
+ {
+  "id": "PAGAMENTO/10 - OUTUBRO/2026-10-23/2026-10-23 - BB - PIX - VT Admissional - Out.pdf",
+  "nome": "Italo Sousa Pereira",
+  "nomeNorm": "ITALO SOUSA PEREIRA",
+  "cpf": null,
+  "tipo": "VT",
+  "situacao": "Pago",
+  "valor": 70.8,
+  "data": "2026-10-23",
+  "complemento": false,
+  "fonteClassificacao": "texto_pdf",
+  "arquivoRelativo": "10 - OUTUBRO/2026-10-23/2026-10-23 - BB - PIX - VT Admissional - Out.pdf"
  }
 ]

@@ -594898,5 +594898,101 @@
   "situacao": "Pago",
   "fonteArquivo": "2026-10-20 - BB - Remessa Bancária - VT - 21 a 27 Out.pdf",
   "origem": "relatorio_lote"
+ },
+ {
+  "nome": "Andressa Souza de Jesus",
+  "nomeNorm": "ANDRESSA SOUZA DE JESUS",
+  "cpf": "08247556502",
+  "tipo": "RESCISAO",
+  "periodo": "RESCISAO.xlsx",
+  "data": "2026-10-22",
+  "valor": 853.6,
+  "situacao": "Pago",
+  "fonteArquivo": "2026-10-22 - BB - Remessa Bancária - Rescisões.pdf",
+  "origem": "relatorio_lote"
+ },
+ {
+  "nome": "Breno Narcisio Brito Meira",
+  "nomeNorm": "BRENO NARCISIO BRITO MEIRA",
+  "cpf": "06945773590",
+  "tipo": "RESCISAO",
+  "periodo": "RESCISAO.xlsx",
+  "data": "2026-10-22",
+  "valor": 849.66,
+  "situacao": "Pago",
+  "fonteArquivo": "2026-10-22 - BB - Remessa Bancária - Rescisões.pdf",
+  "origem": "relatorio_lote"
+ },
+ {
+  "nome": "Cinthia Santana Rodrigues de C",
+  "nomeNorm": "CINTHIA SANTANA RODRIGUES DE C",
+  "cpf": "33018974875",
+  "tipo": "RESCISAO",
+  "periodo": "RESCISAO.xlsx",
+  "data": "2026-10-22",
+  "valor": 1754.35,
+  "situacao": "Pago",
+  "fonteArquivo": "2026-10-22 - BB - Remessa Bancária - Rescisões.pdf",
+  "origem": "relatorio_lote"
+ },
+ {
+  "nome": "Maria Luiza Santos de Oliveira",
+  "nomeNorm": "MARIA LUIZA SANTOS DE OLIVEIRA",
+  "cpf": "10346499577",
+  "tipo": "RESCISAO",
+  "periodo": "RESCISAO.xlsx",
+  "data": "2026-10-22",
+  "valor": 972.88,
+  "situacao": "Pago",
+  "fonteArquivo": "2026-10-22 - BB - Remessa Bancária - Rescisões.pdf",
+  "origem": "relatorio_lote"
+ },
+ {
+  "nome": "Renata Azevedo Nascimento",
+  "nomeNorm": "RENATA AZEVEDO NASCIMENTO",
+  "cpf": "05859546580",
+  "tipo": "RESCISAO",
+  "periodo": "RESCISAO.xlsx",
+  "data": "2026-10-22",
+  "valor": 2324.52,
+  "situacao": "Pago",
+  "fonteArquivo": "2026-10-22 - BB - Remessa Bancária - Rescisões.pdf",
+  "origem": "relatorio_lote"
+ },
+ {
+  "nome": "Romateus de Jesus Santos",
+  "nomeNorm": "ROMATEUS DE JESUS SANTOS",
+  "cpf": "86162856526",
+  "tipo": "RESCISAO",
+  "periodo": "RESCISAO.xlsx",
+  "data": "2026-10-22",
+  "valor": 1126.11,
+  "situacao": "Pago",
+  "fonteArquivo": "2026-10-22 - BB - Remessa Bancária - Rescisões.pdf",
+  "origem": "relatorio_lote"
+ },
+ {
+  "nome": "Carlos Luis da Silva Filho",
+  "nomeNorm": "CARLOS LUIS DA SILVA FILHO",
+  "cpf": "80871607549",
+  "tipo": "AUXILIO",
+  "periodo": "DESLOCAMENTO ILHA ZONA 004.xlsx",
+  "data": "2026-10-23",
+  "valor": 365.23,
+  "situacao": "Pago",
+  "fonteArquivo": "2026-10-23 - BB - Remessa Bancária - Deslocamento Ilha Zona 04.pdf",
+  "origem": "relatorio_lote"
+ },
+ {
+  "nome": "Douglas David Lima de Araujo",
+  "nomeNorm": "DOUGLAS DAVID LIMA DE ARAUJO",
+  "cpf": "86890822552",
+  "tipo": "AUXILIO",
+  "periodo": "DESLOCAMENTO ILHA ZONA 004.xlsx",
+  "data": "2026-10-23",
+  "valor": 300.35,
+  "situacao": "Pago",
+  "fonteArquivo": "2026-10-23 - BB - Remessa Bancária - Deslocamento Ilha Zona 04.pdf",
+  "origem": "relatorio_lote"
  }
 ]
