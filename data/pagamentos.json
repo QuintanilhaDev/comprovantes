@@ -629650,5 +629650,17 @@
   "situacao": "Pago",
   "fonteArquivo": "2026-10-27 - BB - Remessa Bancária - VT - 28 a 29 Out.pdf",
   "origem": "relatorio_lote"
+ },
+ {
+  "nome": "Ayla Silva Lima",
+  "nomeNorm": "AYLA SILVA LIMA",
+  "cpf": "04326012528",
+  "tipo": "RESCISAO",
+  "periodo": "RESCISAO.xlsx",
+  "data": "2026-10-28",
+  "valor": 591.57,
+  "situacao": "Pago",
+  "fonteArquivo": "2026-10-28 - BB - Remessa Bancária - Rescisões.pdf",
+  "origem": "relatorio_lote"
  }
 ]
