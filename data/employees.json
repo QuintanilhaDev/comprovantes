@@ -1629,7 +1629,7 @@
   "posicaoVaga": "9/10",
   "vinculo": "TITULAR",
   "status": "DESLIGADO",
-  "substitui": "",
+  "substitui": "ITALO SOUSA PEREIRA",
   "observacao": null
  },
  {
@@ -3102,7 +3102,7 @@
   "vinculo": "TITULAR",
   "status": "ATIVO",
   "substitui": "",
-  "observacao": null
+  "observacao": "GESTANTE\r\nATESTADO 25/10/2026 A 29/10/2026"
  },
  {
   "cpf": "14224360632",
@@ -3838,7 +3838,7 @@
   "vinculo": "TITULAR",
   "status": "DESLIGADO",
   "substitui": "",
-  "observacao": null
+  "observacao": "SEM COBERTURA"
  },
  {
   "cpf": "08724880558",
@@ -3953,7 +3953,7 @@
   "vinculo": "TITULAR",
   "status": "ATIVO",
   "substitui": "",
-  "observacao": null
+  "observacao": "GESTANTE\r\nATESTADO 13/10/2026 (SEM PREVISÃO)"
  },
  {
   "cpf": "09777562543",
@@ -4407,7 +4407,7 @@
   "conta": "35900-9",
   "optanteVT": true,
   "telefone": "74999585756",
-  "desligamento": null,
+  "desligamento": "2026-10-13",
   "funcao": "AUXILIAR ADMINISTRATIVO - AAOP",
   "posicaoVaga": "6/11",
   "vinculo": "TITULAR",
@@ -4643,7 +4643,7 @@
   "vinculo": "TITULAR",
   "status": "ATIVO",
   "substitui": "",
-  "observacao": null
+  "observacao": "LICENÇA PATERNIDADE - 05/10/2026 A 09/10/2026"
  },
  {
   "cpf": "05566399525",
@@ -5856,7 +5856,7 @@
   "conta": "77975-X",
   "optanteVT": true,
   "telefone": "11966791416",
-  "desligamento": "2026-10-09",
+  "desligamento": "2026-10-13",
   "funcao": "AAOP - MULTIPLICADOR",
   "posicaoVaga": "4/8",
   "vinculo": "TITULAR",
@@ -32651,7 +32651,7 @@
   "conta": "78392-7",
   "optanteVT": true,
   "telefone": "75983100983",
-  "desligamento": null,
+  "desligamento": "2026-10-20",
   "funcao": "AUXILIAR ADMINISTRATIVO - AAOP",
   "posicaoVaga": "2/10",
   "vinculo": "TITULAR",
@@ -35940,7 +35940,7 @@
   "conta": "78682-9",
   "optanteVT": true,
   "telefone": "75988488979 ",
-  "desligamento": null,
+  "desligamento": "2026-10-20",
   "funcao": "AUXILIAR ADMINISTRATIVO - AAOP",
   "posicaoVaga": "4/10",
   "vinculo": "SUBSTITUTO",
@@ -36107,7 +36107,7 @@
   "vinculo": "TITULAR",
   "status": "DESLIGADO",
   "substitui": "",
-  "observacao": null
+  "observacao": "SEM COBERTURA"
  },
  {
   "cpf": "85970363545",
@@ -36935,6 +36935,29 @@
   "vinculo": "SUBSTITUTO",
   "status": "ATIVO",
   "substitui": "GEANE CARDOSO DE JESUS",
+  "observacao": null
+ },
+ {
+  "cpf": "07177837582",
+  "cpfFormatado": "071.778.375-82",
+  "nome": "ITALO SOUSA PEREIRA",
+  "nomeNorm": "ITALO SOUSA PEREIRA",
+  "polo": "P24 VITORIA DA CONQUISTA",
+  "zonaEleitoral": 59,
+  "municipioZona": "POÇOES",
+  "municipioPolo": "VITORIA DA CONQUISTA",
+  "admissao": "2026-10-21",
+  "banco": "001",
+  "agencia": "556-8",
+  "conta": "39182-4",
+  "optanteVT": true,
+  "telefone": 77981015043,
+  "desligamento": null,
+  "funcao": "AUXILIAR ADMINISTRATIVO - AAOP",
+  "posicaoVaga": "9/10",
+  "vinculo": "SUBSTITUTO",
+  "status": "ATIVO",
+  "substitui": "AMANDA SANTOS SOUSA",
   "observacao": null
  }
 ]
